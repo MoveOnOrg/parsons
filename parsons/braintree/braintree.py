@@ -6,10 +6,31 @@ from parsons.etl.table import Table
 from parsons.utilities.check_env import check as check_env
 
 logger = logging.getLogger(__name__)
-# log.info()
-# log.debug()
+
+
+class ParsonsBraintreeError(Exception):
+    pass
+
 
 class Braintree(object):
+    """
+    Braintree is a payment processor.
+    `Args:`
+        merchant_id: str
+            Braintree merchant id -- probably a 16-char alphanumeric.
+            Not required if ``BRAINTREE_MERCHANT_ID`` env variable is set.
+        public_key: str
+            Braintree public key -- probably a (different) 16-char alphanumeric.
+            Not required if ``BRAINTREE_PUBLIC_KEY`` env variable is set.
+        private_key: str
+            Braintree private key -- probably a 32-char alphanumeric.
+            Not required if ``BRAINTREE_PRIVATE_KEY`` env variable is set.
+        timeout: int
+            Optionally change the timeout from default of 200 seconds.
+            Can also be passed with env var ``BRAINTREE_TIMEOUT``.
+    `Returns:`
+        Braintree class
+    """
 
     query_types = {
         'dispute': braintree.DisputeSearch,
@@ -106,7 +127,7 @@ class Braintree(object):
         'reference_number',
         'reply_by_date',
         'status',
-        ### 'transaction.id', # DOT id -- needs to be special-cased (below)
+        # 'transaction.id', # DOT id -- needs to be special-cased (below)
     ]
 
     def __init__(self, merchant_id=None, public_key=None, private_key=None,
@@ -125,34 +146,95 @@ class Braintree(object):
                 private_key=private_key,
                 timeout=200))
 
-
     def get_disputes(self,
                      start_date=None, end_date=None,
                      query_list=None,
                      query_dict=None):
-        collection = self._get_collection('dispute',
-                                          query_list=query_list,
-                                          query_dict=query_dict,
-                                          default_query=(
-                                              {'effective_date': dict(between=[start_date, end_date])}
-                                              if start_date and end_date
-                                              else None
-                                          ))
+        """
+        Get a table of disputes based on query parameters.
+        There are three ways to pass query arguments: Pass a start_date and end_date
+        together for a date range, or pass a query_list or query_dict argument.
+
+        `Args:`
+            start_date: datetime or str
+                Start date of the dispute range. Requires `end_date` arg.
+            end_date: datetime or str
+                End date of the dispute range. Requires `start_date` arg.
+            query_list: list of braintree.DisputeSearch
+                You can use the `braintree.DisputeSearch
+                <https://developers.braintreepayments.com/reference/request/dispute/search/python>`
+                to create a manual list of query parameters.
+            query_dict: jsonable-dict
+                query_dict is basically the same as query_list, except instead of using their API
+                objects, you can pass it in pure dictionary form.
+                Some examples:
+                    The start_date/end_date arguments are the same as
+                      `{"effective_date": {"between": [start_date, end_date]}}`
+                    `{"merchant_account_id": {"in_list": [123, 456]}}`
+                    `{created_at: {"greater_than_or_equal": "2020-03-10"}}`
+        `Returns:`
+            Table Class
+        """
+        collection = self._get_collection(
+            'dispute',
+            query_list=query_list,
+            query_dict=query_dict,
+            default_query=(
+                {'effective_date': dict(between=[start_date, end_date])}
+                if start_date and end_date
+                else None
+            ))
 
         # Iterating on collection.items triggers web requests in batches of 50 records
         # Disputes query api doesn't return the ids -- we can't do anything but iterate
         if not collection.is_success:
-            raise Exception("Braintree dispute query failed")  # TODO: give more info
+            raise ParsonsBraintreeError(f"Braintree dispute query failed: {collection.message}")
         return Table([
             self._dispute_header()
         ] + [self._dispute_to_row(r) for r in collection.disputes.items])
 
     def get_transactions(self,
-                          table_of_ids=None,
-                          disbursement_start_date=None, disbursement_end_date=None,
-                          query_list=None,
-                          query_dict=None,
-                          just_ids=False):
+                         table_of_ids=None,
+                         disbursement_start_date=None, disbursement_end_date=None,
+                         query_list=None,
+                         query_dict=None,
+                         just_ids=False):
+        """
+        Get a table of transactions based on query parameters.
+        There are three ways to pass query arguments:
+        Pass a disbursement_start_date and disbursement_end_date together
+        for a date range, or pass a query_list or query_dict argument.
+
+        `Args:`
+            disbursement_start_date: datetime or str
+                Start date of the disbursement range. Requires `disbursement_end_date` arg.
+            disbursement_end_date: datetime or str
+                End date of the disbursement range. Requires `disbursement_start_date` arg.
+            query_list: list of braintree.DisputeSearch
+                You can use the `braintree.DisputeSearch
+                <https://developers.braintreepayments.com/reference/request/dispute/search/python>`
+               to create a manual list of query parameters.
+            query_dict: jsonable-dict
+                query_dict is basically the same as query_list, except instead of using their API
+                objects, you can pass it in pure dictionary form.
+                Some examples:
+                    The disbursement_start_date/dibursement_end_date arguments are the same as
+                      `{"disbursement_date": {"between": [start_date, end_date]}}`
+                    `{"merchant_account_id": {"in_list": [123, 456]}}`
+                    `{created_at: {"greater_than_or_equal": "2020-03-10"}}`
+            just_ids: bool
+                While querying a list of transaction ids is a single, fast query to Braintree's API,
+                getting all data for each transaction is force-paginated at 50-records per request.
+                If you just need a count or the list of ids, then set `just_ids=True` and
+                it will return a single column with `id` instead of all table columns.
+            table_of_ids: Table with an `id` column -- i.e. a table returned from `just_ids=True`
+                Subsequently, after calling this with `just_ids`, you can prune/alter the ids table
+                and then pass the table back to get the full data.
+                These are somewhat-niche use-cases, but occasionally crucial
+                when a search result returns 1000s of ids.
+        `Returns:`
+            Table Class
+        """
         collection = self._get_collection(
             'transaction',
             table_of_ids=table_of_ids,
@@ -219,7 +301,7 @@ class Braintree(object):
             collection_query = self._get_query_objects(query_type, **default_query)
 
         if not collection_query:
-            raise Exception(
+            raise ParsonsBraintreeError(
                 "You must pass some query parameters: "
                 "query_dict, start_date with end_date, or query_list")
 
@@ -239,7 +321,7 @@ class Braintree(object):
         """
         queries = []
         for node, filters in queryparams.items():
-            # Very meta; 
+            # Very meta programming here, abstracting braintree library's (dumb?) attribute style
             # Example: braintree.DisputeSearch.effective_date
             # Example: braintree.TransactionSearch.disbursement_date
             queryobj = getattr(self.query_types[query_type], node, None)
@@ -247,12 +329,12 @@ class Braintree(object):
                 for qual, vals in filters.items():  # likely only one, but fine
                     queryobj_qualfunc = getattr(queryobj, qual, None)
                     if not queryobj_qualfunc:
-                        raise Exception("oh no, that's not a braintree parameter")
+                        raise ParsonsBraintreeError("oh no, that's not a braintree parameter")
                     if not isinstance(vals, list):
                         vals = [vals]
                     queries.append(queryobj_qualfunc(*vals))
             else:
-                raise Exception("oh no, that's not a braintree parameter")
+                raise ParsonsBraintreeError("oh no, that's not a braintree parameter")
         return queries
 
     def _create_collection(self, ids, queries):
