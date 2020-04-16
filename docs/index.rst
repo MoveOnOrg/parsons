@@ -169,6 +169,7 @@ Indices and tables
    airtable
    aws
    bill_com
+   braintree
    civis
    copper
    crowdtangle
