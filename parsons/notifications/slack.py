@@ -1,8 +1,13 @@
-from parsons import Table
-from slackclient import SlackClient
-from slackclient.exceptions import SlackClientError
 import os
 import time
+
+from parsons.etl.table import Table
+from parsons.utilities.check_env import check
+
+from slackclient import SlackClient
+from slackclient.exceptions import SlackClientError
+
+import requests
 
 
 class Slack(object):
@@ -85,6 +90,24 @@ class Slack(object):
         tbl.remove_column(*rm_cols)
 
         return tbl
+
+    @classmethod
+    def message(cls, channel, text, webhook=None, api_key=None):
+        """
+        Send a message to a Slack channel with a webhook falling back to using an api_key, if available.
+        You might not have the full-access API key but still want to notify a channel
+        `Args:`
+            channel: str
+                The name or id of a `public_channel`, a `private_channel`, or
+                an `im` (aka 1-1 message).
+            text: str
+                Text of the message to send.
+
+        """
+        webhook = check('SLACK_API_WEBHOOK', webhook, optional=True)
+        if not webhook:
+            return cls(api_key=api_key).message_channel(channel, text)
+        return requests.post(webhook, json={'channel': channel, 'text': text})
 
     def message_channel(self, channel, text, as_user=False):
         """
