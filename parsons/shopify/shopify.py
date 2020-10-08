@@ -35,6 +35,6 @@ class Shopify(object):
             self.api_key,
             self.password,
             self.subdomain,
-            table,
-            filters
+            filters,
+            table
         )
