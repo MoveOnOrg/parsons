@@ -29,3 +29,12 @@ class Shopify(object):
         self.subdomain = check_env.check('SHOPIFY_SUBDOMAIN', subdomain)
         self.password = check_env.check('SHOPIFY_PASSWORD', password)
         self.api_key = check_env.check('SHOPIFY_API_KEY', api_key)
+
+    def get_query_url(self, filters=None, table=None):
+        return 'https://%s:%s@%s.myshopify.com/admin/%s?%s' % (
+            self.api_key,
+            self.password,
+            self.subdomain,
+            table,
+            filters
+        )
