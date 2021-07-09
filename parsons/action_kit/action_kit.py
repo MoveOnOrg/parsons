@@ -614,6 +614,20 @@ class ActionKit(object):
                                url=url,
                                **kwargs)
 
+    def get_survey_question(self, survey_question_id):
+        """
+        Get a survey question.
+
+        `Args:`
+            survey_question_id: int
+                The survey question id of the record to get.
+        `Returns`:
+            Survey question json object
+        """
+
+        return self._base_get(endpoint='surveyquestion', entity_id=survey_question_id,
+                              exception_message='Survey question not found')
+
     def create_generic_action(self, page, email=None, ak_id=None, **kwargs):
         """
         Post a generic action. One of ``ak_id`` or ``email`` is a required argument.
