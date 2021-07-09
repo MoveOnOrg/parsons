@@ -58,7 +58,6 @@ class ActionKit(object):
         if exception_message and resp.status_code == 404:
             raise Exception(self.parse_error(resp, exception_message))
 
-        print(resp)
         return resp.json()
 
     def _base_post(self, endpoint, exception_message, return_full_json=False, **kwargs):
