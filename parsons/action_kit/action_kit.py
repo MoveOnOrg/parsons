@@ -550,6 +550,23 @@ class ActionKit(object):
 
         return self._base_post(endpoint='mailer/' + str(mailing_id) + '/rebuild',
                                exception_message='Could not rebuild mailer')
+   def update_mailer(self, mailing_id, **kwargs):
+       """
+       Update a mailer.
+
+       `Args:`
+           mailing_id: int
+               The id of the mailer to update
+           **kwargs:
+               Optional arguments and fields to pass to the client. A full list can be found
+               in the `ActionKit API Documentation <https://roboticdogs.actionkit.com/docs/\
+               manual/api/rest/actionprocessing.html>`_.
+       `Returns:`
+           ``None``
+       """
+
+       resp = self.conn.patch(self._base_endpoint('mailer', mailing_id), data=json.dumps(kwargs))
+       logger.info(f'{resp.status_code}: {mailing_id}')
 
     def queue_mailer(self, mailing_id):
         """
