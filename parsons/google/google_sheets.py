@@ -44,6 +44,8 @@ class GoogleSheets:
         credentials = ServiceAccountCredentials.from_json_keyfile_dict(
             self.google_keyfile_dict, scope
             )
+        if self.google_keyfile_dict.get("subject"):
+            credentials = credentials.create_delegated(self.google_keyfile_dict["subject"])
         self.gspread_client = gspread.authorize(credentials)
 
     def _get_worksheet(self, spreadsheet_id, worksheet=0):
