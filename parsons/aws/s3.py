@@ -57,7 +57,7 @@ class S3(object):
                  aws_access_key_id=None,
                  aws_secret_access_key=None,
                  aws_session_token=None):
-           print(f"S3 Init: AWS Session Token: {aws_session_token}")
+        print(f"S3 Init: AWS Session Token: {aws_session_token}")
 
         self.aws = AWSConnection(aws_access_key_id=aws_access_key_id,
                                  aws_secret_access_key=aws_secret_access_key,
