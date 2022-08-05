@@ -132,17 +132,17 @@ class RedshiftCopyTable(object):
         # Coalesce S3 Key arguments
         aws_access_key_id = aws_access_key_id or self.aws_access_key_id
         aws_secret_access_key = aws_secret_access_key or self.aws_secret_access_key
-
+        print('About to try connecting to S3 with key ', aws_access_key_id)
         self.s3 = S3(aws_access_key_id=aws_access_key_id,
                      aws_secret_access_key=aws_secret_access_key)
-
+        print('Successfully connected to S3')
         hashed_name = hash(time.time())
         key = f"{S3_TEMP_KEY_PREFIX}/{hashed_name}.csv.gz"
-
         # Convert table to compressed CSV file, to optimize the transfers to S3 and to
         # Redshift.
         local_path = tbl.to_csv(temp_file_compression='gzip')
         # Copy table to bucket
+        print(f'Uploading to bucket {self.s3_temp_bucket} with filename {key} from path {local_path}')
         self.s3.put_file(self.s3_temp_bucket, key, local_path)
 
         return key
