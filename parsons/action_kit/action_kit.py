@@ -681,6 +681,20 @@ class ActionKit(object):
         data = data[:i]
         return Table(data[:limit])
 
+    def get_order(self, order_id):
+        """
+        Get an order.
+
+        `Args:`
+            order_id: int
+                The order id of the record to get.
+        `Returns`:
+            User json object
+        """
+
+        return self._base_get(endpoint='order', entity_id=order_id,
+                              exception_message='Order not found')
+
     def update_order(self, order_id, **kwargs):
         """
         Update an order.
@@ -714,6 +728,30 @@ class ActionKit(object):
         resp = self.conn.post(self._base_endpoint('orderrecurring', str(recurring_id)+'/cancel'))
         logger.info(f'{resp.status_code}: {recurring_id}')
         return resp
+
+    def get_orders(self, limit=None, **kwargs):
+        """Get multiple orders.
+
+        `Args:`
+            limit: int
+                The number of orders to return. If omitted, all orders are returned.
+            **kwargs:
+                Optional arguments to pass to the client. A full list can be found
+                in the `ActionKit API Documentation <https://roboticdogs.actionkit.com/docs/\
+                manual/api/rest/actionprocessing.html>`_.
+
+                Additionally, expressions to filter the data can also be provided. For addition
+                info, visit `Django's docs on field lookups <https://docs.djangoproject.com/\
+                en/3.1/topics/db/queries/#field-lookups>`_.
+
+                .. code-block:: python
+
+                    ak.get_orders(import_id="my-import-123")
+        `Returns:`
+            Parsons.Table
+                The events data.
+        """
+        return self.paginated_get('order', limit=limit, **kwargs)
 
     def update_paymenttoken(self, paymenttoken_id, **kwargs):
         """
@@ -852,6 +890,30 @@ class ActionKit(object):
         resp = self.conn.patch(self._base_endpoint('transaction', transaction_id),
                                data=json.dumps(kwargs))
         logger.info(f'{resp.status_code}: {transaction_id}')
+
+    def get_transactions(self, limit=None, **kwargs):
+        """Get multiple transactions.
+
+        `Args:`
+            limit: int
+                The number of transactions to return. If omitted, all transactions are returned.
+            **kwargs:
+                Optional arguments to pass to the client. A full list can be found
+                in the `ActionKit API Documentation <https://roboticdogs.actionkit.com/docs/\
+                manual/api/rest/actionprocessing.html>`_.
+
+                Additionally, expressions to filter the data can also be provided. For addition
+                info, visit `Django's docs on field lookups <https://docs.djangoproject.com/\
+                en/3.1/topics/db/queries/#field-lookups>`_.
+
+                .. code-block:: python
+
+                    ak.get_transactions(order="order-1")
+        `Returns:`
+            Parsons.Table
+                The events data.
+        """
+        return self.paginated_get('transaction', limit=limit, **kwargs)
 
     def create_generic_action(self, page, email=None, ak_id=None, **kwargs):
         """
