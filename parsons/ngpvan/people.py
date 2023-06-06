@@ -6,7 +6,6 @@ logger = logging.getLogger(__name__)
 
 class People(object):
     def __init__(self, van_connection):
-
         self.connection = van_connection
 
     def find_person(
@@ -329,7 +328,6 @@ class People(object):
         url = "people/"
 
         if id:
-
             if create:
                 id_type = "" if id_type in ("vanid", None) else f"{id_type}:"
                 url += id_type + str(id)
@@ -368,7 +366,6 @@ class People(object):
             and None in [firstName, lastName, addressLine1, zipOrPostalCode]
             and None in [email]
         ):
-
             raise ValueError(
                 """
                              Person find must include the following minimum
@@ -446,6 +443,22 @@ class People(object):
 
         logger.info(f'Getting person with {id_type or "vanid"} of {id} at url {url}')
         return self.connection.get_request(url, params={"$expand": expand_fields})
+
+
+    def delete_person(self, vanid):
+        """
+        Suppress the given VANID in databases where contact records can be suppressed.
+
+        `Args:`
+            vanid: str
+                The person's VAN ID.
+        `Returns:`
+            Success or error.
+        """
+        url = f"people/{vanid}"
+        r = self.connection.delete_request(url)
+        logger.info(f"Van ID {vanid} suppressed.")
+        return r
 
     def apply_canvass_result(
         self,
