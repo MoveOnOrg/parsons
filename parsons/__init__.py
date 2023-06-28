@@ -62,6 +62,7 @@ for module_path, connector_name in (
     ("parsons.google.google_sheets", "GoogleSheets"),
     ("parsons.hustle.hustle", "Hustle"),
     ("parsons.mailchimp.mailchimp", "Mailchimp"),
+    ("parsons.mobile_commons.mobile_commons", "MobileCommons"),
     ("parsons.mobilize_america.ma", "MobilizeAmerica"),
     ("parsons.newmode.newmode", "Newmode"),
     ("parsons.ngpvan.van", "VAN"),

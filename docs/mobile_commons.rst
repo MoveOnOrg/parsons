@@ -5,7 +5,7 @@ Auth0
 Overview
 ********
 
-`Auth0 <https://auth0.com/>`_ is an authentication and authorization platform. This Parsons integration with the `Auth0 Management API <https://auth0.com/docs/api/management/v2>`_ supports fetching and deleting user records.
+`Mobile Commons <https://uplandsoftware.com/>`_ is an SMS messaging platform. This Parsons integration with the Mobile Commons REST API supports opting out profiles.
 
 **********
 Quickstart
@@ -21,7 +21,7 @@ To instantiate the Auth0 class, you can either store your Auth0 API client ID, c
    auth0 = Auth0()
 
    # Second approach: Pass API credentials as arguments
-   auth0 = Auth0('auth0_client_id', 'auth0_client_secret', 'auth0_domain')
+   auth0 = Shopify('auth0_client_id', 'auth0_client_secret', 'auth0_domain')
 
 You can then call various endpoints:
 
