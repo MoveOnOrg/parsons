@@ -36,90 +36,50 @@ class MobileCommons(object):
         client.headers.update(default_headers)
         return client
 
-    def delete_user(self, id):
-        """
-        Delete Auth0 user.
+    def _base_endpoint(self, endpoint, entity_id=None):
+        # Create the base endpoint URL
 
-        `Args:`
-            id: str
-                The user ID of the record to delete.
-        `Returns:`
-            int
-        """
-        return requests.delete(
-            f"{self.base_url}/api/v2/users/{id}", headers=self.headers
-        ).status_code
+        url = f"https://secure.mcommons.com/api/{endpoint}/"
 
-    def get_users_by_email(self, email):
-        """
-        Get Auth0 users by email.
+        if entity_id:
+            return url + f"{entity_id}/"
+        return url
 
-        `Args:`
-            email: str
-                The user email of the record to get.
-        `Returns:`
-            Table Class
-        """
-        return Table(
-            requests.get(
-                f"{self.base_url}/api/v2/users-by-email",
-                headers=self.headers,
-                params={"email": email},
-            ).json()
+    def _base_post(self, endpoint, exception_message, return_full_json=False, **kwargs):
+        # Make a general post request to Mobile Commons
+
+        resp = self.conn.post(self._base_endpoint(endpoint), data=json.dumps(kwargs))
+
+        if resp.status_code != 201:
+            raise Exception(self.parse_error(resp, exception_message))
+
+        # Some of the methods should just return pointer to location of created object.
+        if "headers" in resp.__dict__ and not return_full_json:
+            return resp.__dict__["headers"]["Location"]
+
+        # Not all responses return a json
+        try:
+            return resp.json()
+
+        except ValueError:
+            return None
+
+    def parse_error(self, resp, exception_message):
+        # Mobile Commons provides some pretty robust/helpful error reporting. We should surface them with our exceptions.
+
+        if "errors" in resp.json().keys():
+            if isinstance(resp.json()["errors"], list):
+                exception_message += "\n" + ",".join(resp.json()["errors"])
+            else:
+                for k, v in resp.json()["errors"].items():
+                    exception_message += str("\n" + k + ": " + ",".join(v))
+
+        return exception_message
+
+    def profile_opt_out(self, phone_number, **kwargs):
+        return self._base_post(
+            endpoint="profile_opt_out",
+            exception_message="Could not opt out profile",
+            phone_number=phone_number,
+            **kwargs,
         )
-
-    def upsert_user(
-        self,
-        email,
-        username=None,
-        given_name=None,
-        family_name=None,
-        app_metadata={},
-        user_metadata={},
-    ):
-        """
-        Upsert Auth0 users by email.
-
-        `Args:`
-            email: str
-                The user email of the record to get.
-            username: optional str
-                Username to set for user
-            given_name: optional str
-                Given to set for user
-            family_name: optional str
-                Family name to set for user
-            app_metadata: optional dict
-                App metadata to set for user
-            user_metadata: optional dict
-                User metadata to set for user
-        `Returns:`
-            Requests Response object
-        """
-        payload = json.dumps(
-            {
-                "email": email.lower(),
-                "given_name": given_name,
-                "family_name": family_name,
-                "username": username,
-                "connection": "Username-Password-Authentication",
-                "app_metadata": app_metadata,
-                "blocked": False,
-                "user_metadata": user_metadata,
-            }
-        )
-        existing = self.get_users_by_email(email.lower())
-        if existing.num_rows > 0:
-            a0id = existing[0]["user_id"]
-            ret = requests.patch(
-                f"{self.base_url}/api/v2/users/{a0id}",
-                headers=self.headers,
-                data=payload,
-            )
-        else:
-            ret = requests.post(
-                f"{self.base_url}/api/v2/users", headers=self.headers, data=payload
-            )
-        if ret.status_code != 200:
-            raise ValueError(f"Invalid response {ret.json()}")
-        return ret
