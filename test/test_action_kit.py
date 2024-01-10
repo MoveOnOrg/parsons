@@ -461,6 +461,19 @@ class TestActionKit(unittest.TestCase):
             data=json.dumps({"account": "test"}),
         )
 
+    def test_delete_order(self):
+        # Test delete order
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.patch()).status_code = mock.PropertyMock(return_value=204)
+        self.actionkit.conn = resp_mock
+
+        self.actionkit.delete_order(123)
+        self.actionkit.conn.delete.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/order/123/",
+        )
+
     def test_get_orders(self):
         # Test get orders
         resp_mock = mock.MagicMock()
@@ -617,6 +630,19 @@ class TestActionKit(unittest.TestCase):
         self.actionkit.conn.patch.assert_called_with(
             "https://domain.actionkit.com/rest/v1/transaction/123/",
             data=json.dumps({"account": "test"}),
+        )
+
+    def test_delete_transaction(self):
+        # Test delete transaction
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.patch()).status_code = mock.PropertyMock(return_value=204)
+        self.actionkit.conn = resp_mock
+
+        self.actionkit.delete_transaction(123)
+        self.actionkit.conn.delete.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/transaction/123/",
         )
 
     def test_get_transactions(self):

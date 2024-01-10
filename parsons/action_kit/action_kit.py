@@ -840,6 +840,30 @@ class ActionKit(object):
         )
         logger.info(f"{resp.status_code}: {order_id}")
 
+    def delete_order(self, order_id):
+        """
+        Deletes an order and all associated transactions.
+
+        `Args:`
+            order_id: int
+                The order id of the order to delete
+        `Returns:`
+            ``HTTP responses``
+        """
+
+        resps = []
+        transactions = self.get_transactions(order=order_id)
+
+        for t in transactions:
+            resp = self.delete_transaction(transaction_id=t["id"])
+            logger.info(f"{resp.status_code}: Transaction {t['id']}")
+            resps.append(resp)
+
+        resp = self.conn.delete(self._base_endpoint("order", order_id))
+        logger.info(f"{resp.status_code}: Order {order_id}")
+        resps.append(resp)
+        return resps
+
     def get_orderrecurring(self, orderrecurring_id):
         """
         Get an orderrecurring.
@@ -865,7 +889,7 @@ class ActionKit(object):
             recurring_id: int
                 The id of the recurring order to update (NOT the order_id)
         `Returns:`
-            ``None``
+            ``HTTP response``
         """
 
         resp = self.conn.post(
@@ -1071,6 +1095,21 @@ class ActionKit(object):
             self._base_endpoint("transaction", transaction_id), data=json.dumps(kwargs)
         )
         logger.info(f"{resp.status_code}: {transaction_id}")
+
+    def delete_transaction(self, transaction_id):
+        """
+        Delete a transaction.
+
+        `Args:`
+            transaction_id: int
+                The transaction id of the transaction to delete
+        `Returns:`
+            ``HTTP response``
+        """
+
+        resp = self.conn.delete(self._base_endpoint("transaction", transaction_id))
+        logger.info(f"{resp.status_code}: {transaction_id}")
+        return resp
 
     def get_transactions(self, limit=None, **kwargs):
         """Get multiple transactions.
