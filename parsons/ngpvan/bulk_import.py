@@ -381,6 +381,122 @@ class BulkImport(object):
             **url_kwargs,
         )
 
+    def bulk_apply_canvass_results(self, tbl, url_type, **url_kwargs):
+        """
+        Bulk apply contact canvass results.
+
+        The table may include the following columns. The first column
+        must be ``vanid``.
+
+        .. list-table::
+            :widths: 25 25
+            :header-rows: 1
+
+            * - Column Name
+              - Required
+              - Description
+            * - ``vanid``
+              - Yes
+              - A valid VANID primary key
+            * - ``ContactTypeID``
+              - Yes
+              - Contacted How
+            * - ``ResultID``
+              - Yes
+              - Valid Contact Result ID
+            * - ``DateCanvassed``
+              - Yes
+              - Date Contacted
+            * - ``CanvassedBy``
+              - Yes
+              - Valid User ID
+            * - ``Phone``
+              - No
+              - Attempted Phone Number
+            * - ``CountryCode``
+              - No
+              - Country Code (ISO 3166-1 alpha-2)
+            * - ``PhoneTypeID``
+              - No
+              - Phone Type
+            * - ``PhoneOptInStatusID``
+              - No
+              - SMS Opt-In Status
+            * - ``AddressID``
+              - No
+              - The Contact Address ID of the address that was canvassed
+
+        `Args:`
+            table: Parsons table
+                A Parsons table.
+            url_type: str
+                The cloud file storage to use to post the file (``S3`` or ``GCS``).
+                See :ref:`Cloud Storage <cloud-storage>` for more details.
+            **url_kwargs: kwargs
+                Arguments to configure your cloud storage url type. See
+                :ref:`Cloud Storage <cloud-storage>` for more details.
+        `Returns:`
+            int
+                The bulk import job id
+        """
+
+        return self.post_bulk_import(
+            tbl,
+            url_type,
+            "Contacts",
+            [{"name": "CanvassResults"}],
+            "Apply Canvass Results",
+            **url_kwargs,
+        )
+
+    def bulk_apply_contact_custom_fields(self, tbl, url_type, **url_kwargs):
+        """
+        Bulk apply contact custom fields.
+
+        The table may include the following columns. The first column
+        must be ``vanid``.
+
+        .. list-table::
+            :widths: 25 25
+            :header-rows: 1
+
+            * - Column Name
+              - Required
+              - Description
+            * - ``vanid``
+              - Yes
+              - A valid VANID primary key
+            * - ``CustomFieldGroupID``
+              - Yes
+              - Custom Contact Field Group"
+            * - ``***CF{CustomFieldID}``
+              - Yes
+              - At least one custom field column to be loaded associated with the provided CustomFieldGroupID.
+                The column name should be a valid CustomFieldID prefixed with ``CF``.
+
+        `Args:`
+            table: Parsons table
+                A Parsons table.
+            url_type: str
+                The cloud file storage to use to post the file (``S3`` or ``GCS``).
+                See :ref:`Cloud Storage <cloud-storage>` for more details.
+            **url_kwargs: kwargs
+                Arguments to configure your cloud storage url type. See
+                :ref:`Cloud Storage <cloud-storage>` for more details.
+        `Returns:`
+            int
+                The bulk import job id
+        """
+
+        return self.post_bulk_import(
+            tbl,
+            url_type,
+            "Contacts",
+            [{"name": "ApplyContactCustomFields"}],
+            "Apply Contact Custom Fields",
+            **url_kwargs,
+        )
+
 
 # This is a column mapper that is used to accept additional column names and provide
 # flexibility for the user.
