@@ -25,7 +25,6 @@ class CensusGeocoder(object):
     """  # noqa E501
 
     def __init__(self, benchmark="Public_AR_Current", vintage="Current_Current"):
-
         self.cg = censusgeocode.CensusGeocode(benchmark=benchmark, vintage=vintage)
 
     def geocode_onelineaddress(self, address, return_type="geographies"):
@@ -90,12 +89,12 @@ class CensusGeocoder(object):
             :widths: 40
             :header-rows: 1
 
-            * - Column Data
-            * - Unique ID
-            * - Street
-            * - City
-            * - State
-            * - Zipcode
+            * - Column Names
+            * - id (must be unique)
+            * - street
+            * - city
+            * - state
+            * - zip
 
         `Args:`
             table: Parsons Table
@@ -105,6 +104,13 @@ class CensusGeocoder(object):
         """
 
         logger.info(f"Geocoding {table.num_rows} records.")
+        if set(table.columns) != {"id", "street", "city", "state", "zip"}:
+            msg = (
+                "Table must ONLY include `['id', 'street', 'city', 'state', 'zip']` as"
+                + "columns. Tip: try using `table.cut()`"
+            )
+            raise ValueError(msg)
+
         chunked_tables = table.chunk(BATCH_SIZE)
         batch_count = 1
         records_processed = 0

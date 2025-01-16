@@ -41,6 +41,19 @@ class TestActionKit(unittest.TestCase):
         url = self.actionkit._base_endpoint("user", "1234")
         self.assertEqual(url, "https://domain.actionkit.com/rest/v1/user/1234/")
 
+    def test_delete_actionfield(self):
+        # Test delete actionfield
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.patch()).status_code = mock.PropertyMock(return_value=204)
+        self.actionkit.conn = resp_mock
+
+        self.actionkit.delete_actionfield(123)
+        self.actionkit.conn.delete.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/actionfield/123/",
+        )
+
     def test_get_user(self):
         # Test get user
         self.actionkit.get_user(123)
@@ -68,6 +81,26 @@ class TestActionKit(unittest.TestCase):
             data=json.dumps({"email": "test"}),
         )
 
+    def test_add_phone(self):
+        # Test add phone
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.post()).status_code = mock.PropertyMock(return_value=201)
+        self.actionkit.conn = resp_mock
+
+        self.actionkit.add_phone(user_id=123, phone_type="home", phone="+12025550101")
+        self.actionkit.conn.post.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/phone/",
+            data=json.dumps(
+                {
+                    "user": "/rest/v1/user/123/",
+                    "phone_type": "home",
+                    "phone": "+12025550101",
+                }
+            ),
+        )
+
     def test_update_user(self):
         # Test update user
 
@@ -76,11 +109,29 @@ class TestActionKit(unittest.TestCase):
         type(resp_mock.patch()).status_code = mock.PropertyMock(return_value=202)
         self.actionkit.conn = resp_mock
 
-        self.actionkit.update_user(123, last_name="new name")
+        res = self.actionkit.update_user(123, last_name="new name")
         self.actionkit.conn.patch.assert_called_with(
             "https://domain.actionkit.com/rest/v1/user/123/",
             data=json.dumps({"last_name": "new name"}),
         )
+
+        assert res.status_code == 202
+
+    def test_update_phone(self):
+        # Test update phone
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.patch()).status_code = mock.PropertyMock(return_value=202)
+        self.actionkit.conn = resp_mock
+
+        res = self.actionkit.update_phone(123, type="mobile")
+        self.actionkit.conn.patch.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/phone/123/",
+            data=json.dumps({"type": "mobile"}),
+        )
+
+        assert res.status_code == 202
 
     def test_update_event(self):
         # Test update event
@@ -93,6 +144,80 @@ class TestActionKit(unittest.TestCase):
         self.actionkit.conn.patch.assert_called_with(
             "https://domain.actionkit.com/rest/v1/event/123/",
             data=json.dumps({"is_approved": "test"}),
+        )
+
+    def test_create_event_field(self):
+        # Test create event field
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.post()).status_code = mock.PropertyMock(return_value=201)
+        self.actionkit.conn = resp_mock
+
+        self.actionkit.create_event_field(event_id=123, name="name", value="value")
+        self.actionkit.conn.post.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/eventfield/",
+            data=json.dumps(
+                {
+                    "event": "/rest/v1/event/123/",
+                    "name": "name",
+                    "value": "value",
+                }
+            ),
+        )
+
+    def test_update_event_field(self):
+        # Test update event field
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.patch()).status_code = mock.PropertyMock(return_value=202)
+        self.actionkit.conn = resp_mock
+        self.actionkit.update_event_field(456, name="name", value="value")
+        self.actionkit.conn.patch.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/eventfield/456/",
+            data=json.dumps({"name": "name", "value": "value"}),
+        )
+
+    def test_get_blackholed_email(self):
+        # Test get blackholed email
+        resp_mock = mock.MagicMock()
+        type(resp_mock.get()).status_code = mock.PropertyMock(return_value=201)
+        type(resp_mock.get()).json = lambda x: {"meta": {"next": ""}, "objects": []}
+        self.actionkit.conn = resp_mock
+
+        self.actionkit.get_blackholed_email("test")
+        self.actionkit.conn.get.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/blackholedemail/",
+            params={"email": "test", "_limit": 100},
+        )
+
+    def test_blackhole_email(self):
+        # Test blackhole email
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.post()).status_code = mock.PropertyMock(return_value=201)
+        self.actionkit.conn = resp_mock
+
+        self.actionkit.blackhole_email(email="test")
+        self.actionkit.conn.post.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/blackholedemail/",
+            data=json.dumps({"email": "test"}),
+        )
+
+    def test_delete_user_data(self):
+        # Test delete user data
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.post()).status_code = mock.PropertyMock(return_value=201)
+        self.actionkit.conn = resp_mock
+
+        self.actionkit.delete_user_data(email="test")
+        self.actionkit.conn.post.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/eraser/",
+            data=json.dumps({"email": "test"}),
         )
 
     def test_delete_user(self):
@@ -127,6 +252,39 @@ class TestActionKit(unittest.TestCase):
         self.actionkit.conn.post.assert_called_with(
             "https://domain.actionkit.com/rest/v1/campaign/",
             data=json.dumps({"name": "new_campaign", "field": "field"}),
+        )
+
+    def test_search_events_in_campaign(self):
+        # Test search events in campaign
+        resp_mock = mock.MagicMock()
+        type(resp_mock.get()).status_code = mock.PropertyMock(return_value=201)
+        type(resp_mock.get()).json = lambda x: {"meta": {"next": ""}, "objects": []}
+        self.actionkit.conn = resp_mock
+
+        self.actionkit.search_events_in_campaign(
+            123,
+            limit=100,
+            order_by="created_at",
+            ascdesc="desc",
+            filters={
+                "title": "Event Title",
+                "field__name": "event_field_name",
+                "field__value": "Event field value",
+            },
+            exclude={
+                "creator__email": "host@example.com",
+            },
+        )
+        self.actionkit.conn.get.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/campaign/123/event_search/",
+            params={
+                "filter[title]": "Event Title",
+                "filter[field__name]": "event_field_name",
+                "filter[field__value]": "Event field value",
+                "exclude[creator__email]": "host@example.com",
+                "order_by": "-created_at",
+                "_limit": 100,
+            },
         )
 
     def test_get_event(self):
@@ -164,9 +322,7 @@ class TestActionKit(unittest.TestCase):
         type(resp_mock.post()).status_code = mock.PropertyMock(return_value=201)
         self.actionkit.conn = resp_mock
 
-        self.actionkit.create_event_create_page(
-            name="new_page", campaign_id="123", title="title"
-        )
+        self.actionkit.create_event_create_page(name="new_page", campaign_id="123", title="title")
         self.actionkit.conn.post.assert_called_with(
             "https://domain.actionkit.com/rest/v1/eventcreatepage/",
             data=json.dumps(
@@ -193,9 +349,7 @@ class TestActionKit(unittest.TestCase):
         type(resp_mock.post()).status_code = mock.PropertyMock(return_value=201)
         self.actionkit.conn = resp_mock
 
-        self.actionkit.create_event_create_form(
-            page_id="123", thank_you_text="thank you"
-        )
+        self.actionkit.create_event_create_form(page_id="123", thank_you_text="thank you")
         self.actionkit.conn.post.assert_called_with(
             "https://domain.actionkit.com/rest/v1/eventcreateform/",
             data=json.dumps(
@@ -218,9 +372,7 @@ class TestActionKit(unittest.TestCase):
         type(resp_mock.post()).status_code = mock.PropertyMock(return_value=201)
         self.actionkit.conn = resp_mock
 
-        self.actionkit.create_event_signup_page(
-            name="new_name", campaign_id="123", title="title"
-        )
+        self.actionkit.create_event_signup_page(name="new_name", campaign_id="123", title="title")
         self.actionkit.conn.post.assert_called_with(
             "https://domain.actionkit.com/rest/v1/eventsignuppage/",
             data=json.dumps(
@@ -247,14 +399,10 @@ class TestActionKit(unittest.TestCase):
         type(resp_mock.post()).status_code = mock.PropertyMock(return_value=201)
         self.actionkit.conn = resp_mock
 
-        self.actionkit.create_event_signup_form(
-            page_id="123", thank_you_text="thank you"
-        )
+        self.actionkit.create_event_signup_form(page_id="123", thank_you_text="thank you")
         self.actionkit.conn.post.assert_called_with(
             "https://domain.actionkit.com/rest/v1/eventsignupform/",
-            data=json.dumps(
-                {"page": "/rest/v1/page/123/", "thank_you_text": "thank you"}
-            ),
+            data=json.dumps({"page": "/rest/v1/page/123/", "thank_you_text": "thank you"}),
         )
 
     def test_update_event_signup(self):
@@ -475,6 +623,13 @@ class TestActionKit(unittest.TestCase):
             data=json.dumps({"question_html": "test"}),
         )
 
+    def test_get_orderrecurring(self):
+        # Test get orderrecurring
+        self.actionkit.get_orderrecurring(123)
+        self.actionkit.conn.get.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/orderrecurring/123/", params=None
+        )
+
     def test_cancel_orderrecurring(self):
         # Test cancel recurring order
 
@@ -486,6 +641,19 @@ class TestActionKit(unittest.TestCase):
         self.actionkit.cancel_orderrecurring(1)
         self.actionkit.conn.post.assert_called_with(
             "https://domain.actionkit.com/rest/v1/orderrecurring/1/cancel/"
+        )
+
+    def test_update_orderrecurring(self):
+        # Test update orderrecurring
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.patch()).status_code = mock.PropertyMock(return_value=202)
+        self.actionkit.conn = resp_mock
+        self.actionkit.update_orderrecurring(123, amount="1.00")
+        self.actionkit.conn.patch.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/orderrecurring/123/",
+            data=json.dumps({"amount": "1.00"}),
         )
 
     def test_create_transaction(self):
@@ -572,6 +740,22 @@ class TestActionKit(unittest.TestCase):
             data=json.dumps({"email": "bob@bob.com", "page": "my_action"}),
         )
 
+    def test_update_import_action(self):
+        # Test update import action
+
+        # Mock resp and status code
+        resp_mock = mock.MagicMock()
+        type(resp_mock.patch()).status_code = mock.PropertyMock(return_value=202)
+        self.actionkit.conn = resp_mock
+
+        res = self.actionkit.update_import_action(123, source="new source")
+        self.actionkit.conn.patch.assert_called_with(
+            "https://domain.actionkit.com/rest/v1/importaction/123/",
+            data=json.dumps({"source": "new source"}),
+        )
+
+        assert res.status_code == 202
+
     def test_bulk_upload_table(self):
         resp_mock = mock.MagicMock()
         type(resp_mock.post()).status_code = mock.PropertyMock(return_value=201)
@@ -622,16 +806,12 @@ class TestActionKit(unittest.TestCase):
         assert_matching_tables(tables[0], Table([("x", "y"), ("a", "b")]))
         assert_matching_tables(tables[1], Table([("x", "z"), ("1", "3"), ("4", "6")]))
 
-        test2 = Table(
-            [("x", "y", "z"), ("a", "b", "c"), ("1", "2", "3"), ("4", "5", "6")]
-        )
+        test2 = Table([("x", "y", "z"), ("a", "b", "c"), ("1", "2", "3"), ("4", "5", "6")])
         tables2 = self.actionkit._split_tables_no_empties(test2, True, [])
         self.assertEqual(len(tables2), 1)
         assert_matching_tables(tables2[0], test2)
 
-        test3 = Table(
-            [("x", "y", "z"), ("a", "b", ""), ("1", "2", "3"), ("4", "5", "6")]
-        )
+        test3 = Table([("x", "y", "z"), ("a", "b", ""), ("1", "2", "3"), ("4", "5", "6")])
         tables3 = self.actionkit._split_tables_no_empties(test3, False, ["z"])
         self.assertEqual(len(tables3), 2)
         assert_matching_tables(tables3[0], Table([("x", "y"), ("a", "b")]))
@@ -640,8 +820,31 @@ class TestActionKit(unittest.TestCase):
         )
 
     def test_collect_errors(self):
+        resp_mock = mock.MagicMock()
+        type(resp_mock.get()).json = lambda x: {"is_completed": True, "has_errors": 25}
+        self.actionkit.conn = resp_mock
+
         self.actionkit.collect_upload_errors([{"id": "12345"}])
-        self.actionkit.conn.get.assert_called_with(
-            "https://domain.actionkit.com/rest/v1/uploaderror/",
-            params={"upload": "12345"},
+
+        self.actionkit.conn.get.assert_any_call(
+            "https://domain.actionkit.com/rest/v1/upload/12345/", params=None
         )
+
+        # With 25 errors, we will view two pages
+        self.actionkit.conn.get.assert_any_call(
+            "https://domain.actionkit.com/rest/v1/uploaderror/",
+            params={"upload": "12345", "_limit": 20, "_offset": 0},
+        )
+        self.actionkit.conn.get.assert_any_call(
+            "https://domain.actionkit.com/rest/v1/uploaderror/",
+            params={"upload": "12345", "_limit": 20, "_offset": 20},
+        )
+
+        # Assert that we don't attempt to view a third page
+        assert (
+            mock.call(
+                "https://domain.actionkit.com/rest/v1/uploaderror/",
+                params={"upload": "12345", "_limit": 20, "_offset": 40},
+            )
+            not in self.actionkit.conn.get.call_args_list
+        ), "Called with invalid arguments."

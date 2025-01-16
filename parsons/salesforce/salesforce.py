@@ -1,6 +1,5 @@
 from simple_salesforce import Salesforce as _Salesforce
 from parsons.utilities import check_env
-from parsons.etl import Table
 import logging
 import json
 
@@ -29,15 +28,10 @@ class Salesforce:
         Salesforce class
     """
 
-    def __init__(
-        self, username=None, password=None, security_token=None, test_environment=False
-    ):
-
+    def __init__(self, username=None, password=None, security_token=None, test_environment=False):
         self.username = check_env.check("SALESFORCE_USERNAME", username)
         self.password = check_env.check("SALESFORCE_PASSWORD", password)
-        self.security_token = check_env.check(
-            "SALESFORCE_SECURITY_TOKEN", security_token
-        )
+        self.security_token = check_env.check("SALESFORCE_SECURITY_TOKEN", security_token)
 
         if test_environment:
             self.domain = check_env.check("SALESFORCE_DOMAIN", "test")
@@ -80,8 +74,9 @@ class Salesforce:
             list of dicts with Salesforce data
         """  # noqa: E501,E261
 
-        q = Table(self.client.query_all(soql))
-        logger.info(f"Found {q.num_rows} results")
+        q = self.client.query_all(soql)
+        q = json.loads(json.dumps(q))
+        logger.info(f"Found {q['totalSize']} results")
         return q
 
     def insert_record(self, object, data_table):

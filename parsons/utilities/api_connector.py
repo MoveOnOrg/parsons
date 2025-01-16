@@ -32,10 +32,7 @@ class APIConnector(object):
         APIConnector class
     """
 
-    def __init__(
-        self, uri, headers=None, auth=None, pagination_key=None, data_key=None
-    ):
-
+    def __init__(self, uri, headers=None, auth=None, pagination_key=None, data_key=None):
         # Add a trailing slash if its missing
         if not uri.endswith("/"):
             uri = uri + "/"
@@ -84,7 +81,7 @@ class APIConnector(object):
             params=params,
         )
 
-    def get_request(self, url, params=None):
+    def get_request(self, url, params=None, return_format="json"):
         """
         Make a GET request.
 
@@ -99,9 +96,14 @@ class APIConnector(object):
 
         r = self.request(url, "GET", params=params)
         self.validate_response(r)
-        logger.debug(r.json())
 
-        return r.json()
+        if return_format == "json":
+            logger.debug(r.json())
+            return r.json()
+        elif return_format == "content":
+            return r.content
+        else:
+            raise RuntimeError(f"{return_format} is not a valid format, change to json or content")
 
     def post_request(
         self, url, params=None, data=None, json=None, success_codes=[200, 201, 202, 204]
@@ -164,9 +166,7 @@ class APIConnector(object):
             else:
                 return r.status_code
 
-    def put_request(
-        self, url, data=None, json=None, params=None, success_codes=[200, 201, 204]
-    ):
+    def put_request(self, url, data=None, json=None, params=None, success_codes=[200, 201, 204]):
         """
         Make a PUT request.
 
@@ -193,9 +193,7 @@ class APIConnector(object):
             else:
                 return r.status_code
 
-    def patch_request(
-        self, url, params=None, data=None, json=None, success_codes=[200, 201, 204]
-    ):
+    def patch_request(self, url, params=None, data=None, json=None, success_codes=[200, 201, 204]):
         """
         Make a PATCH request.
 
@@ -237,9 +235,10 @@ class APIConnector(object):
         """
 
         if resp.status_code >= 400:
-
             if resp.reason:
                 message = f"HTTP error occurred ({resp.status_code}): {resp.reason}"
+            elif resp.text:
+                message = f"HTTP error occurred ({resp.status_code}): {resp.text}"
             else:
                 message = f"HTTP error occurred ({resp.status_code})"
 
@@ -263,7 +262,7 @@ class APIConnector(object):
                 A dictionary of data.
         """
 
-        # To Do: Some response jsons are enclosed in a list. Need to deal with unpacking and/or
+        # TODO: Some response jsons are enclosed in a list. Need to deal with unpacking and/or
         # not assuming that it is going to be a dict.
 
         # In some instances responses are just lists.

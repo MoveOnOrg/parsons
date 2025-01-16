@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from typing import Optional
 import psycopg2
 import psycopg2.extras
 from parsons.etl.table import Table
@@ -61,7 +62,7 @@ class PostgresCore(PostgresCreateStatement):
         finally:
             cur.close()
 
-    def query(self, sql, parameters=None):
+    def query(self, sql: str, parameters: Optional[list] = None) -> Optional[Table]:
         """
         Execute a query against the database. Will return ``None`` if the query returns zero rows.
 
@@ -125,7 +126,6 @@ class PostgresCore(PostgresCreateStatement):
         """
 
         with self.cursor(connection) as cursor:
-
             logger.debug(f"SQL Query: {sql}")
             cursor.execute(sql, parameters)
 
@@ -138,7 +138,6 @@ class PostgresCore(PostgresCreateStatement):
                 return None
 
             else:
-
                 # Fetch the data in batches, and "pickle" the rows to a temp file.
                 # (We pickle rather than writing to, say, a CSV, so that we maintain
                 # all the type information for each field.)
@@ -187,7 +186,6 @@ class PostgresCore(PostgresCreateStatement):
 
         # If the table exists, evaluate the if_exists argument for next steps.
         if self.table_exists_with_connection(table_name, connection):
-
             if if_exists == "fail":
                 raise ValueError("Table already exists.")
 
@@ -207,7 +205,7 @@ class PostgresCore(PostgresCreateStatement):
         else:
             return True
 
-    def table_exists(self, table_name, view=True):
+    def table_exists(self, table_name: str, view: bool = True) -> bool:
         """
         Check if a table or view exists in the database.
 
@@ -215,7 +213,7 @@ class PostgresCore(PostgresCreateStatement):
             table_name: str
                 The table name and schema (e.g. ``myschema.mytable``).
             view: boolean
-                Check to see if a view exists by the same name
+                Check to see if a view exists by the same name. Defaults to ``True``.
 
         `Returns:`
             boolean
@@ -225,16 +223,14 @@ class PostgresCore(PostgresCreateStatement):
             return self.table_exists_with_connection(table_name, connection, view)
 
     def table_exists_with_connection(self, table_name, connection, view=True):
-
         # Extract the table and schema from this. If no schema is detected then
         # will default to the public schema.
         try:
-            schema, table = table_name.lower().split(".", 1)
+            schema, table = table_name.split(".", 1)
         except ValueError:
-            schema, table = "public", table_name.lower()
+            schema, table = "public", table_name
 
         with self.cursor(connection) as cursor:
-
             # Check in pg tables for the table
             sql = f"""select count(*) from pg_tables where schemaname='{schema}' and
                      tablename='{table}';"""

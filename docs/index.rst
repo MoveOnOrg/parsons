@@ -180,7 +180,9 @@ Indices and tables
 
    actblue
    action_kit
+   action_builder
    action_network
+   airmeet
    airtable
    alchemer
    auth0
@@ -188,23 +190,27 @@ Indices and tables
    azure
    bill_com
    bloomerang
-   bluelink
    box
    braintree
    capitolcanary
+   census
    civis
    controlshift
    copper
    crowdtangle
    databases
    donorbox
+   empower
    facebook_ads
+   formstack
    freshdesk
    github
    google
    hustle
    mailchimp
+   mobilecommons
    mobilize_america
+   nation_builder
    newmode
    ngpvan
    p2a
