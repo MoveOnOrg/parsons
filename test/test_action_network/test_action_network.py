@@ -348,6 +348,13 @@ class TestActionNetwork(unittest.TestCase):
             },
             "event_id": "fake-id",
         }
+        self.fake_unique_id_list = {
+            "name": "fake_list_name",
+            "unique_ids": [
+                "ee48622d-a584-46a4-b817-2e6f2e4bf51b",
+                "1b0012d2-214a-4188-9c82-08f21ee54b27",
+            ],
+        }
 
     @requests_mock.Mocker()
     def test_get_page(self, m):
@@ -501,4 +508,22 @@ class TestActionNetwork(unittest.TestCase):
         assert_matching_tables(
             self.an._get_entry_list("tags", filter=self.fake_tag_filter),
             Table(self.fake_tag_list["_embedded"]["osdi:tags"]),
+        )
+
+    @requests_mock.Mocker()
+    def test_create_unique_id_list(self, m):
+        m.post(
+            f"{self.api_url}/unique_id_lists",
+            text=json.dumps(
+                {
+                    "name": self.fake_unique_id_list["name"],
+                    "count": len(self.fake_unique_id_list["unique_ids"]),
+                }
+            ),
+        )
+        self.assertEqual(
+            len(self.fake_unique_id_list["unique_ids"]),
+            self.an.create_unique_id_list(
+                self.fake_unique_id_list["name"], self.fake_unique_id_list["unique_ids"]
+            )["count"],
         )
