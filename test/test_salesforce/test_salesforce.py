@@ -6,15 +6,25 @@ from parsons import Salesforce, Table
 
 class TestSalesforce(unittest.TestCase):
     def setUp(self):
-
         os.environ["SALESFORCE_USERNAME"] = "MYFAKEUSERNAME"
         os.environ["SALESFORCE_PASSWORD"] = "MYFAKEPASSWORD"
         os.environ["SALESFORCE_SECURITY_TOKEN"] = "MYFAKESECURITYTOKEN"
 
         self.sf = Salesforce()
         self.sf._client = mock.MagicMock()
-
-        self.sf._client.query_all.return_value = [{"Id": 1, "value": "FAKE"}]
+        self.sf._client.query_all.return_value = {
+            "totalSize": 1,
+            "done": True,
+            "records": [
+                {
+                    "attributes": {
+                        "type": "Contact",
+                        "url": "/services/data/v38.0/" + "sobjects/Contact/" + "1234567890AaBbC",
+                    },
+                    "Id": "1234567890AaBbC",
+                }
+            ],
+        }
         self.sf._client.bulk.Contact.insert.return_value = [
             {"success": True, "created": True, "id": "1234567890AaBbC", "errors": []}
         ]
@@ -30,30 +40,25 @@ class TestSalesforce(unittest.TestCase):
         ]
 
     def test_describe(self):
-
         pass
 
     def test_describe_fields(self):
-
         # TO DO: test this with requests mock instead?
         pass
 
     def test_query(self):
-
         fake_soql = "FAKESOQL"
         response = self.sf.query(fake_soql)
-        assert self.sf.client.query_all.called_with(fake_soql)
-        self.assertEqual(response[0]["value"], "FAKE")
+        self.sf.client.query_all.assert_called_with(fake_soql)
+        self.assertEqual(response["records"][0]["Id"], "1234567890AaBbC")
 
     def test_insert(self):
-
         fake_data = Table([{"firstname": "Chrisjen", "lastname": "Avasarala"}])
         response = self.sf.insert_record("Contact", fake_data)
-        assert self.sf.client.bulk.Contact.insert.called_with(fake_data)
+        self.sf.client.bulk.Contact.insert.assert_called_with(fake_data.to_dicts())
         assert response[0]["created"]
 
     def test_update(self):
-
         fake_data = Table(
             [
                 {
@@ -64,11 +69,10 @@ class TestSalesforce(unittest.TestCase):
             ]
         )
         response = self.sf.update_record("Contact", fake_data)
-        assert self.sf.client.bulk.Contact.update.called_with(fake_data)
+        self.sf.client.bulk.Contact.update.assert_called_with(fake_data.to_dicts())
         assert not response[0]["created"]
 
     def test_upsert(self):
-
         fake_data = Table(
             [
                 {
@@ -80,14 +84,13 @@ class TestSalesforce(unittest.TestCase):
             ]
         )
         response = self.sf.upsert_record("Contact", fake_data, "id")
-        assert self.sf.client.bulk.Contact.update.called_with(fake_data)
+        self.sf.client.bulk.Contact.upsert.assert_called_with(fake_data.to_dicts(), "id")
         print(response)
         assert not response[0]["created"]
         assert response[1]["created"]
 
     def test_delete(self):
-
         fake_data = Table([{"id": "1234567890AaBbC"}])
         response = self.sf.delete_record("Contact", fake_data)
-        assert self.sf.client.bulk.Contact.update.called_with(fake_data)
+        self.sf.client.bulk.Contact.delete.assert_called_with(fake_data.to_dicts())
         assert not response[0]["created"]

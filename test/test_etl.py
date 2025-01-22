@@ -1,12 +1,12 @@
-import unittest
-import petl
 import os
 import shutil
+import unittest
+from test.utils import assert_matching_tables
+
+import petl
 
 from parsons import Table
-from test.utils import assert_matching_tables
 from parsons.utilities import zip_archive
-
 
 # Notes :
 # - The `Table.to_postgres()` test is housed in the Postgres tests
@@ -15,7 +15,6 @@ from parsons.utilities import zip_archive
 
 class TestParsonsTable(unittest.TestCase):
     def setUp(self):
-
         # Create Table object
         self.lst = [
             {"a": 1, "b": 2, "c": 3},
@@ -31,19 +30,16 @@ class TestParsonsTable(unittest.TestCase):
         os.mkdir("tmp")
 
     def tearDown(self):
-
         # Delete tmp folder and files
         shutil.rmtree("tmp")
 
     def test_from_list_of_dicts(self):
-
         tbl = Table(self.lst)
 
         # Test Iterate and is list like
         self.assertEqual(tbl[0], {"a": 1, "b": 2, "c": 3})
 
     def test_from_list_of_lists(self):
-
         list_of_lists = [
             ["a", "b", "c"],
             [1, 2, 3],
@@ -54,19 +50,19 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(tbl[0], {"a": 1, "b": 2, "c": 3})
 
     def test_from_petl(self):
-
         nrows = 10
         ptbl = petl.dummytable(numrows=nrows)
         tbl = Table(ptbl)
         self.assertEqual(tbl.num_rows, nrows)
 
     def test_from_invalid_list(self):
-
         # Tests that a table can't be created from a list of invalid items
         list_of_invalid = [1, 2, 3]
         self.assertRaises(ValueError, Table, list_of_invalid)
 
     def test_from_empty_petl(self):
+        # This test ensures that this would fail: Table(None)
+        # Even while allowing Table() to work
         self.assertRaises(ValueError, Table, None)
 
     def test_from_empty_list(self):
@@ -98,7 +94,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertFalse(tbl.empty_column("a"))
 
     def test_from_columns(self):
-
         header = ["col1", "col2"]
         col1 = [1, 2, 3]
         col2 = ["a", "b", "c"]
@@ -125,12 +120,10 @@ class TestParsonsTable(unittest.TestCase):
     """
 
     def test_to_petl(self):
-
         # Is a petl table
         self.assertIsInstance(self.tbl.to_petl(), petl.io.json.DictsView)
 
     def test_to_html(self):
-
         html_file = "tmp/test.html"
 
         # Test writing file
@@ -157,7 +150,6 @@ class TestParsonsTable(unittest.TestCase):
             self.assertEqual(f.read(), html)
 
     def test_to_temp_html(self):
-
         # Test write to object
         path = self.tbl.to_html()
 
@@ -232,7 +224,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertRaises(ValueError, Table.from_csv, path)
 
     def test_to_csv_zip(self):
-
         try:
             # Test using the to_csv() method
             self.tbl.to_csv("myzip.zip")
@@ -247,7 +238,6 @@ class TestParsonsTable(unittest.TestCase):
             os.unlink("myzip.zip")
 
     def test_to_civis(self):
-
         # Not really sure the best way to do this at the moment.
         pass
 
@@ -306,6 +296,10 @@ class TestParsonsTable(unittest.TestCase):
         # Test that we can't add an existing column name
         self.assertRaises(ValueError, self.tbl.add_column, "first")
 
+    def test_add_column_if_exists(self):
+        self.tbl.add_column("first", if_exists="replace")
+        self.assertEqual(self.tbl.columns, ["first", "last"])
+
     def test_remove_column(self):
         # Test that column is removed correctly
         self.tbl.remove_column("first")
@@ -319,6 +313,34 @@ class TestParsonsTable(unittest.TestCase):
     def test_column_rename_dupe(self):
         # Test that we can't rename to a column that already exists
         self.assertRaises(ValueError, self.tbl.rename_column, "last", "first")
+
+    def test_rename_columns(self):
+        # Test renaming columns with a valid column_map
+        column_map = {"first": "firstname", "last": "lastname"}
+        self.tbl.rename_columns(column_map)
+        self.assertEqual(self.tbl.columns, ["firstname", "lastname"])
+
+    def test_rename_columns_partial(self):
+        # Test renaming only some columns
+        column_map = {"first": "firstname"}
+        self.tbl.rename_columns(column_map)
+        self.assertEqual(self.tbl.columns, ["firstname", "last"])
+
+    def test_rename_columns_nonexistent(self):
+        # Test renaming a column that doesn't exist
+        column_map = {"nonexistent": "newname"}
+        self.assertRaises(KeyError, self.tbl.rename_columns, column_map)
+
+    def test_rename_columns_empty(self):
+        # Test renaming with an empty column_map
+        column_map = {}
+        self.tbl.rename_columns(column_map)
+        self.assertEqual(self.tbl.columns, ["first", "last"])
+
+    def test_rename_columns_duplicate(self):
+        # Test renaming to a column name that already exists
+        column_map = {"first": "last"}
+        self.assertRaises(ValueError, self.tbl.rename_columns, column_map)
 
     def test_fill_column(self):
         # Test that the column is filled
@@ -409,7 +431,6 @@ class TestParsonsTable(unittest.TestCase):
         assert_matching_tables(tbl, expected)
 
     def test_unpack_dict(self):
-
         test_dict = [{"a": 1, "b": {"nest1": 1, "nest2": 2}}]
         test_table = Table(test_dict)
 
@@ -418,7 +439,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(test_table.columns, ["a", "nest1", "nest2"])
 
     def test_unpack_list(self):
-
         test_table = Table([{"a": 1, "b": [1, 2, 3]}])
 
         # Test that list at the top level
@@ -426,7 +446,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(["a", "b_0", "b_1", "b_2"], test_table.columns)
 
     def test_unpack_list_with_mixed_col(self):
-
         # Test unpacking column with non-list items
         mixed_tbl = Table([{"id": 1, "tag": [1, 2, None, 4]}, {"id": 2, "tag": None}])
         tbl_unpacked = Table(mixed_tbl.unpack_list("tag"))
@@ -448,7 +467,6 @@ class TestParsonsTable(unittest.TestCase):
         )
 
     def test_unpack_nested_columns_as_rows(self):
-
         # A Table with mixed content
         test_table = Table(
             [
@@ -472,7 +490,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(len({row["uid"] for row in standalone}), 11)
 
     def test_unpack_nested_columns_as_rows_expanded(self):
-
         test_table = Table(
             [
                 {"id": 1, "nested": {"A": 1, "B": 2, "C": 3}, "extra": "hi"},
@@ -483,14 +500,10 @@ class TestParsonsTable(unittest.TestCase):
             ]
         )
 
-        expanded = test_table.unpack_nested_columns_as_rows(
-            "nested", expand_original=True
-        )
+        expanded = test_table.unpack_nested_columns_as_rows("nested", expand_original=True)
 
         # Check that the columns are as expected
-        self.assertEqual(
-            ["uid", "id", "extra", "nested", "nested_value"], expanded.columns
-        )
+        self.assertEqual(["uid", "id", "extra", "nested", "nested_value"], expanded.columns)
 
         # Check that the row count is as expected
         self.assertEqual(expanded.num_rows, 12)
@@ -499,16 +512,12 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(len({row["uid"] for row in expanded}), 12)
 
     def test_cut(self):
-
         # Test that the cut works correctly
         cut_tbl = self.tbl.cut("first")
         self.assertEqual(cut_tbl.columns, ["first"])
 
     def test_row_select(self):
-
-        tbl = Table(
-            [["foo", "bar", "baz"], ["c", 4, 9.3], ["a", 2, 88.2], ["b", 1, 23.3]]
-        )
+        tbl = Table([["foo", "bar", "baz"], ["c", 4, 9.3], ["a", 2, 88.2], ["b", 1, 23.3]])
         expected = Table([{"foo": "a", "bar": 2, "baz": 88.2}])
 
         # Try with this method
@@ -520,7 +529,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(select_tbl2.data[0], expected.data[0])
 
     def test_remove_null_rows(self):
-
         # Test that null rows are removed from a single column
         null_table = Table([{"a": 1, "b": 2}, {"a": 1, "b": None}])
         self.assertEqual(null_table.remove_null_rows("b").num_rows, 1)
@@ -530,7 +538,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(null_table.remove_null_rows(["b", "c"]).num_rows, 1)
 
     def test_long_table(self):
-
         # Create a long table, that is 4 rows long
         tbl = Table([{"id": 1, "tag": [1, 2, 3, 4]}])
         self.assertEqual(tbl.long_table(["id"], "tag").num_rows, 4)
@@ -544,7 +551,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(tbl_keep.columns, ["id", "tag"])
 
     def test_long_table_with_na(self):
-
         # Create a long table that is 4 rows long
         tbl = Table([{"id": 1, "tag": [1, 2, 3, 4]}, {"id": 2, "tag": None}])
         self.assertEqual(tbl.long_table(["id"], "tag").num_rows, 4)
@@ -593,7 +599,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertRaises(TypeError, tbl["c"])
 
     def test_row_data(self):
-
         # Test a valid column
         tbl = Table(self.lst)
         row = {"a": 4, "b": 5, "c": 6}
@@ -619,7 +624,6 @@ class TestParsonsTable(unittest.TestCase):
         assert_matching_tables(expected_tbl, tbl1)
 
     def test_chunk(self):
-
         test_table = Table(petl.randomtable(3, 499, seed=42))
         chunks = test_table.chunk(100)
 
@@ -684,9 +688,7 @@ class TestParsonsTable(unittest.TestCase):
         )
         tbl.match_columns(desired_tbl.columns)
         desired_tbl = (
-            Table(desired_raw)
-            .remove_column("middle_name")
-            .add_column("middle_name", index=1)
+            Table(desired_raw).remove_column("middle_name").add_column("middle_name", index=1)
         )
         assert_matching_tables(desired_tbl, tbl)
 
@@ -785,7 +787,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(expected, ptable.to_dicts())
 
     def test_map_columns_exact(self):
-
         input_tbl = Table([["fn", "ln", "MID"], ["J", "B", "H"]])
 
         column_map = {
@@ -799,7 +800,6 @@ class TestParsonsTable(unittest.TestCase):
         assert_matching_tables(input_tbl, exact_tbl)
 
     def test_map_columns_fuzzy(self):
-
         input_tbl = Table([["fn", "ln", "Mi_"], ["J", "B", "H"]])
 
         column_map = {
@@ -813,7 +813,6 @@ class TestParsonsTable(unittest.TestCase):
         assert_matching_tables(input_tbl, fuzzy_tbl)
 
     def test_get_column_max_with(self):
-
         tbl = Table(
             [
                 ["a", "b", "c"],
@@ -832,7 +831,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(tbl.get_column_max_width("c"), 33)
 
     def test_sort(self):
-
         # Test basic sort
         unsorted_tbl = Table([["a", "b"], [3, 1], [2, 2], [1, 3]])
         sorted_tbl = unsorted_tbl.sort()
@@ -849,7 +847,6 @@ class TestParsonsTable(unittest.TestCase):
         self.assertEqual(sorted_tbl[0], {"a": 3, "b": 1})
 
     def test_set_header(self):
-
         # Rename columns
         tbl = Table([["one", "two"], [1, 2], [3, 4]])
         new_tbl = tbl.set_header(["oneone", "twotwo"])
@@ -896,3 +893,83 @@ class TestParsonsTable(unittest.TestCase):
 
         tbl_petl = tbl.use_petl("skipcomments", "#", to_petl=True)
         self.assertIsInstance(tbl_petl, PetlTable)
+
+    def test_deduplicate(self):
+        # Confirm deduplicate works with no keys for one-column duplicates
+        tbl = Table([["a"], [1], [2], [2], [3]])
+        tbl_expected = Table([["a"], [1], [2], [3]])
+        tbl.deduplicate()
+        assert_matching_tables(tbl_expected, tbl)
+
+        # Confirm deduplicate works with no keys for multiple columns
+        tbl = Table([["a", "b"], [1, 2], [1, 2], [1, 3], [2, 3]])
+        tbl_expected = Table(
+            [
+                ["a", "b"],
+                [1, 2],
+                [1, 3],
+                [2, 3],
+            ]
+        )
+        tbl.deduplicate()
+        assert_matching_tables(tbl_expected, tbl)
+
+        # Confirm deduplicate works with one key for multiple columns
+        tbl = Table([["a", "b"], [1, 3], [1, 2], [1, 2], [2, 3]])
+        tbl_expected = Table(
+            [
+                ["a", "b"],
+                [1, 3],
+                [2, 3],
+            ]
+        )
+        tbl.deduplicate(keys=["a"])
+        assert_matching_tables(tbl_expected, tbl)
+
+        # Confirm sorting deduplicate works with one key for multiple columns
+
+        # Note that petl sorts on the column(s) you're deduping on
+        # Meaning it will ignore the 'b' column below
+        # That is, the first row, [1,3],
+        # would not get moved to after the [1,2]
+        tbl = Table([["a", "b"], [2, 3], [1, 3], [1, 2], [1, 2]])
+        tbl_expected = Table(
+            [
+                ["a", "b"],
+                [1, 3],
+                [2, 3],
+            ]
+        )
+        tbl.deduplicate(keys=["a"], presorted=False)
+        assert_matching_tables(tbl_expected, tbl)
+
+        # Confirm sorting deduplicate works for two of two columns
+        tbl = Table([["a", "b"], [2, 3], [1, 3], [1, 2], [1, 2]])
+        tbl_expected = Table(
+            [
+                ["a", "b"],
+                [1, 2],
+                [1, 3],
+                [2, 3],
+            ]
+        )
+        tbl.deduplicate(keys=["a", "b"], presorted=False)
+        assert_matching_tables(tbl_expected, tbl)
+
+        # Confirm deduplicate works for multiple keys
+        tbl = Table([["a", "b", "c"], [1, 2, 3], [1, 2, 3], [1, 2, 4], [1, 3, 2], [2, 3, 4]])
+        tbl_expected = Table([["a", "b", "c"], [1, 2, 3], [1, 3, 2], [2, 3, 4]])
+        tbl.deduplicate(["a", "b"])
+        assert_matching_tables(tbl_expected, tbl)
+
+    def test_head(self):
+        tbl = Table([["a", "b"], [1, 2], [3, 4], [5, 6], [7, 8], [9, 10]])
+        tbl_expected = Table([["a", "b"], [1, 2], [3, 4]])
+        tbl.head(2)
+        assert_matching_tables(tbl_expected, tbl)
+
+    def test_tail(self):
+        tbl = Table([["a", "b"], [1, 2], [3, 4], [5, 6], [7, 8], [9, 10]])
+        tbl_expected = Table([["a", "b"], [7, 8], [9, 10]])
+        tbl.tail(2)
+        assert_matching_tables(tbl_expected, tbl)

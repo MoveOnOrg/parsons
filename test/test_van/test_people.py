@@ -7,6 +7,7 @@ from test.test_van.responses_people import (
     find_people_response,
     get_person_response,
     merge_contacts_response,
+    delete_person_response,
 )
 
 os.environ["VAN_API_KEY"] = "SOME_KEY"
@@ -14,27 +15,22 @@ os.environ["VAN_API_KEY"] = "SOME_KEY"
 
 class TestNGPVAN(unittest.TestCase):
     def setUp(self):
-
         self.van = VAN(os.environ["VAN_API_KEY"], db="MyVoters", raise_for_status=False)
 
     @requests_mock.Mocker()
     def test_find_person(self, m):
-
         m.post(
             self.van.connection.uri + "people/find",
             json=find_people_response,
             status_code=200,
         )
 
-        person = self.van.find_person(
-            first_name="Bob", last_name="Smith", phone=4142020792
-        )
+        person = self.van.find_person(first_name="Bob", last_name="Smith", phone=4142020792)
 
         self.assertEqual(person, find_people_response)
 
     @requests_mock.Mocker()
     def test_find_person_json(self, m):
-
         json = {
             "firstName": "Bob",
             "lastName": "Smith",
@@ -52,28 +48,22 @@ class TestNGPVAN(unittest.TestCase):
         self.assertEqual(person, find_people_response)
 
     def test_upsert_person(self):
-
         pass
 
     def test_upsert_person_json(self):
-
         pass
 
     def test_update_person(self):
-
         pass
 
     def test_update_person_json(self):
-
         pass
 
     def test_people_search(self):
-
         # Already tested as part of upsert and find person methods
         pass
 
     def test_valid_search(self):
-
         # Fails with FN / LN Only
         self.assertRaises(
             ValueError,
@@ -114,9 +104,7 @@ class TestNGPVAN(unittest.TestCase):
         )
 
         # Successful with FN/LN/Email
-        self.van._valid_search(
-            "Barack", "Obama", "barack@email.com", None, None, None, None
-        )
+        self.van._valid_search("Barack", "Obama", "barack@email.com", None, None, None, None)
 
         # Successful with FN/LN/DOB/ZIP
         self.van._valid_search(
@@ -128,7 +116,6 @@ class TestNGPVAN(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_get_person(self, m):
-
         json = get_person_response
 
         # Test works with external ID
@@ -142,12 +129,17 @@ class TestNGPVAN(unittest.TestCase):
         self.assertEqual(get_person_response, person)
 
     @requests_mock.Mocker()
-    def test_apply_canvass_result(self, m):
+    def test_delete_person(self, m):
+        json = delete_person_response
+        # Test works with vanid
+        m.delete(self.van.connection.uri + "people/19722445", json=json)
+        response = self.van.delete_person("19722445")
+        self.assertEqual(delete_person_response, response)
 
+    @requests_mock.Mocker()
+    def test_apply_canvass_result(self, m):
         # Test a valid attempt
-        m.post(
-            self.van.connection.uri + "people/2335282/canvassResponses", status_code=204
-        )
+        m.post(self.van.connection.uri + "people/2335282/canvassResponses", status_code=204)
         self.van.apply_canvass_result(2335282, 18)
 
         # Test a bad result code
@@ -192,25 +184,16 @@ class TestNGPVAN(unittest.TestCase):
         self.van.apply_canvass_result(2335282, 18, id_type="DWID")
 
         # test canvassing via phone or sms without providing phone number
-        self.assertRaises(
-            Exception, self.van.apply_canvass_result, 2335282, 18, contact_type_id=37
-        )
+        self.assertRaises(Exception, self.van.apply_canvass_result, 2335282, 18, contact_type_id=37)
 
         # test canvassing via phone or sms with providing phone number
-        m.post(
-            self.van.connection.uri + "people/2335282/canvassResponses", status_code=204
-        )
-        self.van.apply_canvass_result(
-            2335282, 18, contact_type_id=37, phone="(516)-555-2342"
-        )
+        m.post(self.van.connection.uri + "people/2335282/canvassResponses", status_code=204)
+        self.van.apply_canvass_result(2335282, 18, contact_type_id=37, phone="(516)-555-2342")
 
     @requests_mock.Mocker()
     def test_apply_survey_question(self, m):
-
         # Test valid survey question
-        m.post(
-            self.van.connection.uri + "people/2335282/canvassResponses", status_code=204
-        )
+        m.post(self.van.connection.uri + "people/2335282/canvassResponses", status_code=204)
         self.van.apply_survey_response(2335282, 351006, 1443891)
 
         # Test bad survey response id
@@ -222,12 +205,8 @@ class TestNGPVAN(unittest.TestCase):
         #         'properties': ['responses[0].surveyResponseId']
         #     }]
         # }
-        m.post(
-            self.van.connection.uri + "people/2335282/canvassResponses", status_code=400
-        )
-        self.assertRaises(
-            HTTPError, self.van.apply_survey_response, 2335282, 0, 1443891
-        )
+        m.post(self.van.connection.uri + "people/2335282/canvassResponses", status_code=400)
+        self.assertRaises(HTTPError, self.van.apply_survey_response, 2335282, 0, 1443891)
 
         # Test bad survey question id
         # json = {
@@ -238,22 +217,17 @@ class TestNGPVAN(unittest.TestCase):
         #         'properties': ['responses[0].surveyQuestionId']
         #     }]
         # }
-        m.post(
-            self.van.connection.uri + "people/2335282/canvassResponses", status_code=400
-        )
+        m.post(self.van.connection.uri + "people/2335282/canvassResponses", status_code=400)
         self.assertRaises(HTTPError, self.van.apply_survey_response, 2335282, 351006, 0)
 
     def test_toggle_volunteer_action(self):
-
         pass
 
     def test_apply_response(self):
-
         pass
 
     @requests_mock.Mocker()
     def test_create_relationship(self, m):
-
         relationship_id = 12
         bad_vanid_1 = 99999
         good_vanid_1 = 12345
@@ -291,7 +265,6 @@ class TestNGPVAN(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_apply_person_code(self, m):
-
         vanid = 999
         code_id = 888
 
@@ -305,7 +278,6 @@ class TestNGPVAN(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_merge_contacts(self, m):
-
         source_vanid = 12345
 
         m.put(

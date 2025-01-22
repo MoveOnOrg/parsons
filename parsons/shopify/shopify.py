@@ -77,9 +77,7 @@ class Shopify(object):
             int
         """
         return (
-            self.client.request(
-                self.get_query_url(query_date, since_id, table_name), "GET"
-            )
+            self.client.request(self.get_query_url(query_date, since_id, table_name), "GET")
             .json()
             .get("count", 0)
         )
@@ -144,9 +142,7 @@ class Shopify(object):
 
         return Table(orders)
 
-    def get_query_url(
-        self, query_date=None, since_id=None, table_name=None, count=True
-    ):
+    def get_query_url(self, query_date=None, since_id=None, table_name=None, count=True):
         """
         Get the URL of a Shopify API request
         `Args:`
@@ -192,9 +188,7 @@ class Shopify(object):
             dict
         """
         return (
-            self.client.request(
-                self.base_url + "graphql.json", "POST", json={"query": query}
-            )
+            self.client.request(self.base_url + "graphql.json", "POST", json={"query": query})
             .json()
             .get("data")
         )
