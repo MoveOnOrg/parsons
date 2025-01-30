@@ -1940,6 +1940,11 @@ class ActionNetwork(object):
         `Args:`
             unique_id_list_id:
                 The unique id of the unique ID list
+        `Returns:`
+            A JSON response with the unique ID list details
+        `Documentation Reference`:
+            https://actionnetwork.org/docs/v2/unique_id_lists
+        """
         return self.api.get_request(f"unique_id_lists/{unique_id_list_id}")
 
     def create_unique_id_list(self, list_name, unique_ids):
