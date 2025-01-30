@@ -1940,6 +1940,7 @@ class ActionNetwork(object):
         `Args:`
             unique_id_list_id:
                 The unique id of the unique ID list
+        """
         return self.api.get_request(f"unique_id_lists/{unique_id_list_id}")
 
     def create_unique_id_list(self, list_name, unique_ids):
