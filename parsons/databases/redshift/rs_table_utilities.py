@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 # import pkgutil
 
@@ -13,15 +14,16 @@ class RedshiftTableUtilities:
         """
         Check if a table or view exists in the database.
 
-        `Args:`
+        Args:
             table_name: str
                 The table name and schema (e.g. ``myschema.mytable``).
             view: boolean
                 Check to see if a view exists by the same name
 
-        `Returns:`
+        Returns:
             boolean
                 ``True`` if the table exists and ``False`` if it does not.
+
         """
         with self.connection() as connection:
             return self.table_exists_with_connection(table_name, connection, view)
@@ -34,7 +36,7 @@ class RedshiftTableUtilities:
         sql = f"""select count(*) from pg_tables where schemaname='{table_name[0]}' and
                  tablename='{table_name[1]}';"""
 
-        # TODO maybe convert these queries to use self.query_with_connection
+        # TODO(jburchard): maybe convert these queries to use self.query_with_connection
 
         with self.cursor(connection) as cursor:
             cursor.execute(sql)
@@ -66,13 +68,14 @@ class RedshiftTableUtilities:
 
            SELECT COUNT(*) FROM myschema.mytable
 
-        `Args:`
+        Args:
             table_name: str
                 The schema and name (e.g. ``myschema.mytable``) of the table.
-        `Returns:`
-            int
-        """
 
+        Returns:
+            int
+
+        """
         count_query = self.query(f"select count(*) from {table_name}")
         return count_query[0]["count"]
 
@@ -81,16 +84,17 @@ class RedshiftTableUtilities:
         Rename an existing table.
 
         .. note::
+
             You cannot move schemas when renaming a table. Instead, utilize
-            the :meth:`table_duplicate()`. method.
+            the :meth:`~.duplicate_table` method.
 
         Args:
             table_name: str
                 Name of existing schema and table (e.g. ``myschema.oldtable``)
             new_table_name: str
                 New name for table with the schema omitted (e.g. ``newtable``).
-        """
 
+        """
         sql = f"alter table {table_name} rename to {new_table_name}"
         self.query(sql)
         logger.info(f"{table_name} renamed to {new_table_name}")
@@ -101,19 +105,17 @@ class RedshiftTableUtilities:
         and distkey. **Once run, the source table rows will be empty.** This is
         more efficiant than running ``"create newtable as select * from oldtable"``.
 
-        For more information see: `ALTER TABLE APPEND <https://docs.aws.amazon.com/redshift/latest/dg/r_ALTER_TABLE_APPEND.html>`_
+        For more information see: `ALTER TABLE APPEND <https://docs.aws.amazon.com/redshift/latest/dg/r_ALTER_TABLE_APPEND.html>`__
 
         Args:
             source_table: str
                 Name of existing schema and table (e.g. ``my_schema.old_table``)
             new_table: str
                 New name of schema and table (e.g. ``my_schema.newtable``)
-            drop_original: boolean
+            drop_source_table: boolean
                 Drop the source table.
-        Returns:
-                None
-        """
 
+        """
         # To Do: Add the grants
         # To Do: Argument for if the table exists?
         # To Do: Add the ignore extra kwarg.
@@ -139,11 +141,13 @@ class RedshiftTableUtilities:
 
         logger.info(f"{source_table} data moved from {new_table}  .")
 
-    def _create_table_precheck(self, connection, table_name, if_exists):
+    def _create_table_precheck(
+        self, connection, table_name, if_exists: Literal["fail", "append", "drop", "truncate"]
+    ):
         """
         Helper to determine what to do when you need a table that may already exist.
 
-        `Args:`
+        Args:
             connection: obj
                 A connection object obtained from ``redshift.connection()``
             table_name: str
@@ -151,11 +155,12 @@ class RedshiftTableUtilities:
             if_exists: str
                 If the table already exists, either ``fail``, ``append``, ``drop``,
                 or ``truncate`` the table.
-        `Returns:`
+
+        Returns:
             bool
                 True if the table needs to be created, False otherwise.
-        """
 
+        """
         if if_exists not in ["fail", "truncate", "append", "drop"]:
             raise ValueError("Invalid value for `if_exists` argument")
 
@@ -179,13 +184,18 @@ class RedshiftTableUtilities:
         return False
 
     def populate_table_from_query(
-        self, query, destination_table, if_exists="fail", distkey=None, sortkey=None
+        self,
+        query,
+        destination_table,
+        if_exists: Literal["fail", "append", "drop", "truncate"] = "fail",
+        distkey=None,
+        sortkey=None,
     ):
         """
         Populate a Redshift table with the results of a SQL query, creating the table if it
         doesn't yet exist.
 
-        `Args:`
+        Args:
             query: str
                 The SQL query
             destination_table: str
@@ -197,6 +207,7 @@ class RedshiftTableUtilities:
                 The column to use as the distkey for the table.
             sortkey: str
                 The column to use as the sortkey for the table.
+
         """
         with self.connection() as conn:
             should_create = self._create_table_precheck(conn, destination_table, if_exists)
@@ -222,14 +233,14 @@ class RedshiftTableUtilities:
         source_table,
         destination_table,
         where_clause="",
-        if_exists="fail",
+        if_exists: Literal["fail", "append", "drop", "truncate"] = "fail",
         drop_source_table=False,
     ):
         """
         Create a copy of an existing table (or subset of rows) in a new
         table. It will inherit encoding, sortkey and distkey.
 
-        `Args:`
+        Args:
             source_table: str
                 Name of existing schema and table (e.g. ``myschema.oldtable``)
             destination_table: str
@@ -241,8 +252,8 @@ class RedshiftTableUtilities:
                 or ``truncate`` the table.
             drop_source_table: boolean
                 Drop the source table
-        """
 
+        """
         with self.connection() as conn:
             should_create = self._create_table_precheck(conn, destination_table, if_exists)
 
@@ -277,10 +288,8 @@ class RedshiftTableUtilities:
                 duplicate rows.
             view: boolean
                 Create a view rather than a static table
-        Returns:
-            None
-        """
 
+        """
         union_type = " UNION ALL" if union_all else " UNION"
         table_type = "VIEW" if view else "TABLE"
 
@@ -303,11 +312,12 @@ class RedshiftTableUtilities:
                 Filter by a schema
             table_name: str
                 Filter by a table name
-        `Returns:`
-            Parsons Table
-                See :ref:`parsons-table` for output options.
-        """
 
+        Returns:
+            Table
+                See :ref:`Table` for output options.
+
+        """
         logger.info("Retrieving tables info.")
         sql = "select * from pg_tables"
         if schema or table_name:
@@ -327,16 +337,17 @@ class RedshiftTableUtilities:
         .. warning::
            This method is only accessible by Redshift *superusers*.
 
-        `Args:`
+        Args:
             schema: str
                 Filter by a schema
             table_name: str
                 Filter by a table name
-        `Returns:`
-            Parsons Table
-                See :ref:`parsons-table` for output options.
-        """
 
+        Returns:
+            Table
+                See :ref:`Table` for output options.
+
+        """
         logger.info("Retrieving table statistics.")
         sql = "select * from svv_table_info"
         if schema or table_name:
@@ -360,27 +371,27 @@ class RedshiftTableUtilities:
             for col in rs.get_columns('some_schema', 'some_table'):
                 print(col)
 
-        `Args:`
+        Args:
             schema: str
                 The schema name
             table_name: str
                 The table name
-        `Returns:`
+
+        Returns:
             A dict mapping column name to a dict with extra info. The keys of the dict are ordered
             just like the columns in the table. The extra info is a dict with format
 
             .. code-block:: python
 
                 {
-                'data_type': str,
-                'max_length': int or None,
-                'max_precision': int or None,
-                'max_scale': int or None,
-                'is_nullable': bool
+                    'data_type': str,
+                    'max_length': int or None,
+                    'max_precision': int or None,
+                    'max_scale': int or None,
+                    'is_nullable': bool
                 }
 
         """
-
         query = f"""
             select ordinal_position,
                    column_name,
@@ -410,13 +421,15 @@ class RedshiftTableUtilities:
         """
         Gets the just the column names for a table.
 
-        `Args:`
+        Args:
             schema: str
                 The schema name
             table_name: str
                 The table name
-        `Returns:`
+
+        Returns:
             A list of column names.
+
         """
         schema = f'"{schema}"' if not (schema.startswith('"') and schema.endswith('"')) else schema
 
@@ -439,11 +452,12 @@ class RedshiftTableUtilities:
                 Filter by a schema
             view: str
                 Filter by a table name
-        `Returns:`
-            Parsons Table
-                See :ref:`parsons-table` for output options.
-        """
 
+        Returns:
+            Table
+                See :ref:`Table` for output options.
+
+        """
         logger.info("Retrieving views info.")
         sql = """
               select table_schema as schema_name,
@@ -465,11 +479,11 @@ class RedshiftTableUtilities:
         .. warning::
             Must be a Redshift superuser to run this method.
 
-        `Returns:`
-            Parsons Table
-                See :ref:`parsons-table` for output options.
-        """
+        Returns:
+            Table
+                See :ref:`Table` for output options.
 
+        """
         logger.info("Retrieving running and queued queries.")
 
         # Lifted from Redshift Utils https://github.com/awslabs/amazon-redshift-utils/blob/master/src/AdminScripts/running_queues.sql
@@ -519,13 +533,13 @@ class RedshiftTableUtilities:
         """
         Return the max value from a table.
 
-        `Args:`
+        Args:
             table_name: str
                 Schema and table name
             value_column: str
                 The column containing the values
-        """
 
+        """
         return self.query(f"SELECT MAX({value_column}) value from {table_name}")[0]["value"]
 
     def get_object_type(self, object_name):
@@ -534,10 +548,11 @@ class RedshiftTableUtilities:
 
         One of `view`, `table`, `index`, `sequence`, or `TOAST table`.
 
-        `Args:`
+        Args:
             object_name: str
                 The schema.obj for which to get the object type.
-        `Returns:`
+
+        Returns:
             `str` of the object type.
 
         """
@@ -567,10 +582,11 @@ class RedshiftTableUtilities:
         """
         Return true if the object is a view.
 
-        `Args:`
+        Args:
             object_name: str
                 The schema.obj to test if it's a view.
-        `Returns:`
+
+        Returns:
             `bool`
 
         """
@@ -582,10 +598,11 @@ class RedshiftTableUtilities:
         """
         Return true if the object is a table.
 
-        `Args:`
+        Args:
             object_name: str
                 The schema.obj to test if it's a table.
-        `Returns:`
+
+        Returns:
             `bool`
 
         """
@@ -597,13 +614,14 @@ class RedshiftTableUtilities:
         """
         Get the table definition (i.e. the create statement).
 
-        `Args:`
+        Args:
             table: str
                 The schema.table for which to get the table definition.
-        `Returns:`
-            str
-        """
 
+        Returns:
+            str
+
+        """
         schema, table = self.split_full_table_name(table)
 
         if not self.is_table(f"{schema}.{table}"):
@@ -622,16 +640,16 @@ class RedshiftTableUtilities:
         `schema` and `table`. Only returns the ddl for _tables_ that match
         `schema` and `table` if they exist.
 
-        `Args:`
+        Args:
             schema: str
                 The schema to filter by.
             table: str
                 The table to filter by.
-        `Returns:`
+
+        Returns:
             `list` of dicts with matching tables.
 
         """
-
         conditions = []
         if schema:
             conditions.append(f"schemaname like '{schema}'")
@@ -655,7 +673,7 @@ class RedshiftTableUtilities:
             return None
 
         def join_sql_parts(columns, rows):
-            return [f"{columns[1]}.{columns[2]}", "\n".join([row[4] for row in rows])]
+            return [f"{columns[1]}.{columns[2]}", "\n".join(row[4] for row in rows)]
 
         # The query returns the sql over multiple rows
         # We need to join then into a single row
@@ -672,13 +690,14 @@ class RedshiftTableUtilities:
         """
         Get the view definition (i.e. the create statement).
 
-        `Args:`
+        Args:
             view: str
                 The schema.view for which to get the view definition.
-        `Returns:`
-            str
-        """
 
+        Returns:
+            str
+
+        """
         schema, view = self.split_full_table_name(view)
 
         if not self.is_view(f"{schema}.{view}"):
@@ -697,16 +716,16 @@ class RedshiftTableUtilities:
         `schema` and `view`. Only returns the ddl for _views_ that match
         `schema` and `view` if they exist.
 
-        `Args:`
+        Args:
             schema: str
                 The schema to filter by.
             view: str
                 The view to filter by.
-        `Returns:`
+
+        Returns:
             `list` of dicts with matching views.
 
         """
-
         conditions = []
         if schema:
             conditions.append(f"schemaname like '{schema}'")
@@ -741,12 +760,14 @@ class RedshiftTableUtilities:
         Eg:
         ``(schema, table) = Redshift.split_full_table_name("some_schema.some_table")``
 
-        `Args:`
+        Args:
             full_table_name: str
                 The table name, as "schema.table"
-        `Returns:`
+
+        Returns:
             tuple
                 A tuple containing (schema, table)
+
         """
         if "." not in full_table_name:
             return "public", full_table_name
@@ -764,13 +785,15 @@ class RedshiftTableUtilities:
         """
         Creates a full table name by combining a schema and table.
 
-        `Args:`
+        Args:
             schema: str
                 The schema name
             table: str
                 The table name
-        `Returns:`
+
+        Returns:
             str
                 The combined full table name
+
         """
         return f"{schema}.{table}"

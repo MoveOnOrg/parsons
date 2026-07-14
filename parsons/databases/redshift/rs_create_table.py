@@ -30,14 +30,16 @@ class RedshiftCreateTable(DatabaseCreateStatement):
     def _rename_reserved_word(self, col, index):
         """Return the renamed column.
 
-        `Args`:
+        Args:
             col: str
                 The column to rename.
             index: int
                 (Optional) The index of the column.
-        `Returns`:
+
+        Returns:
             str
                 The rename column.
+
         """
         return f"col_{index}"
 
@@ -206,8 +208,10 @@ class RedshiftCreateTable(DatabaseCreateStatement):
             (
                 distkey,
                 "DIST",
-                "https://aws.amazon.com/about-aws/whats-new/2019/08/amazon-redshift-"
-                "now-recommends-distribution-keys-for-improved-query-performance/",
+                (
+                    "https://aws.amazon.com/about-aws/whats-new/2019/08/amazon-redshift-"
+                    "now-recommends-distribution-keys-for-improved-query-performance/"
+                ),
             ),
             (
                 sortkey,

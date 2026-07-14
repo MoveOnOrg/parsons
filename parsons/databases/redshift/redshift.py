@@ -1,12 +1,11 @@
 import datetime
 import json
 import logging
-import os
 import pickle
 import random
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Literal
 
 import petl
 import psycopg2
@@ -20,7 +19,7 @@ from parsons.databases.redshift.rs_schema import RedshiftSchema
 from parsons.databases.redshift.rs_table_utilities import RedshiftTableUtilities
 from parsons.databases.table import BaseTable
 from parsons.etl.table import Table
-from parsons.utilities import files, sql_helpers
+from parsons.utilities import check_env, files, sql_helpers
 
 # Max number of rows that we query at a time, so we can avoid loading huge
 # data sets into memory.
@@ -73,6 +72,7 @@ class Redshift(
             Controls use of the ``AWS_SESSION_TOKEN`` environment variable for S3. Defaults
             to ``True``. Set to ``False`` in order to ignore the ``AWS_SESSION_TOKEN`` environment
             variable even if the ``aws_session_token`` argument was not passed in.
+
     """
 
     def __init__(
@@ -91,19 +91,15 @@ class Redshift(
     ):
         super().__init__()
 
-        try:
-            self.username = username or os.environ["REDSHIFT_USERNAME"]
-            self.password = password or os.environ["REDSHIFT_PASSWORD"]
-            self.host = host or os.environ["REDSHIFT_HOST"]
-            self.db = db or os.environ["REDSHIFT_DB"]
-            self.port = port or os.environ["REDSHIFT_PORT"]
-        except KeyError as error:
-            logger.error("Connection info missing. Most include as kwarg or env variable.")
-            raise error
+        self.username = check_env.check("REDSHIFT_USERNAME", username)
+        self.password = check_env.check("REDSHIFT_PASSWORD", password)
+        self.host = check_env.check("REDSHIFT_HOST", host)
+        self.db = check_env.check("REDSHIFT_DB", db)
+        self.port = check_env.check("REDSHIFT_PORT", port)
 
         self.timeout = timeout
         self.dialect = "redshift"
-        self.s3_temp_bucket = s3_temp_bucket or os.environ.get("S3_TEMP_BUCKET")
+        self.s3_temp_bucket = check_env.check("S3_TEMP_BUCKET", s3_temp_bucket, optional=True)
         # Set prefix for temp S3 bucket paths that include subfolders
         self.s3_temp_bucket_prefix = None
         if self.s3_temp_bucket and "/" in self.s3_temp_bucket:
@@ -128,10 +124,10 @@ class Redshift(
         any context manager):
         ``with rs.connection() as conn:``
 
-        `Returns:`
+        Yields:
             Psycopg2 ``connection`` object
-        """
 
+        """
         # Create a psycopg2 connection and cursor
         conn = psycopg2.connect(
             user=self.username,
@@ -156,7 +152,7 @@ class Redshift(
         finally:
             cur.close()
 
-    def query(self, sql: str, parameters: Optional[list] = None) -> Optional[Table]:
+    def query(self, sql: str, parameters: list | None = None) -> Table | None:
         """
         Execute a query against the Redshift database. Will return ``None``
         if the query returns zero rows.
@@ -183,18 +179,17 @@ class Redshift(
             sql = f"SELECT * FROM my_table WHERE name IN ({placeholders})"
             rs.query(sql, parameters=names)
 
-        `Args:`
+        Args:
             sql: str
                 A valid SQL statement
             parameters: list
                 A list of python variables to be converted into SQL values in your query
 
-        `Returns:`
-            Parsons Table
-                See :ref:`parsons-table` for output options.
+        Returns:
+            Table
+                See :ref:`Table` for output options.
 
         """
-
         with self.connection() as connection:
             return self.query_with_connection(sql, connection, parameters=parameters)
 
@@ -204,7 +199,7 @@ class Redshift(
         Useful for batching queries together. Will return ``None`` if the query
         returns zero rows.
 
-        `Args:`
+        Args:
             sql: str
                 A valid SQL statement
             connection: obj
@@ -216,11 +211,11 @@ class Redshift(
                 be committed when the connection goes out of scope and is closed (or you can
                 commit manually with ``connection.commit()``).
 
-        `Returns:`
-            Parsons Table
-                See :ref:`parsons-table` for output options.
-        """
+        Returns:
+            Table
+                See :ref:`Table` for output options.
 
+        """
         # To Do: Have it return an ordered dict to return the
         #        rows in the correct order
 
@@ -273,7 +268,7 @@ class Redshift(
         data_type="csv",
         csv_delimiter=",",
         compression=None,
-        if_exists="fail",
+        if_exists: Literal["fail", "append", "drop", "truncate"] = "fail",
         max_errors=0,
         distkey=None,
         sortkey=None,
@@ -303,7 +298,7 @@ class Redshift(
         """
         Copy a file from s3 to Redshift.
 
-        `Args:`
+        Args:
             table_name: str
                 The table name and schema (``tmc.cool_table``) to point the file.
             bucket: str
@@ -395,11 +390,11 @@ class Redshift(
                 is a pre-existing table that has the same columns/types, then use the template_table
                 table name as the schema for the new table.
 
-        `Returns`
-            Parsons Table or ``None``
-                See :ref:`parsons-table` for output options.
-        """
+        Returns:
+            Table or ``None``
+                See :ref:`Table` for output options.
 
+        """
         with self.connection() as connection:
             if self._create_table_precheck(connection, table_name, if_exists):
                 if template_table:
@@ -472,39 +467,39 @@ class Redshift(
         self,
         tbl: Table,
         table_name: str,
-        if_exists: str = "fail",
+        if_exists: Literal["fail", "append", "drop", "truncate"] = "fail",
         max_errors: int = 0,
-        distkey: Optional[str] = None,
-        sortkey: Optional[str] = None,
-        padding: Optional[float] = None,
-        statupdate: Optional[bool] = None,
-        compupdate: Optional[bool] = None,
+        distkey: str | None = None,
+        sortkey: str | None = None,
+        padding: float | None = None,
+        statupdate: bool | None = None,
+        compupdate: bool | None = None,
         acceptanydate: bool = True,
         emptyasnull: bool = True,
         blanksasnull: bool = True,
-        nullas: Optional[str] = None,
+        nullas: str | None = None,
         acceptinvchars: bool = True,
         dateformat: str = "auto",
         timeformat: str = "auto",
-        varchar_max: Optional[list[str]] = None,
+        varchar_max: list[str] | None = None,
         truncatecolumns: bool = False,
-        columntypes: Optional[dict] = None,
-        specifycols: Optional[bool] = None,
+        columntypes: dict | None = None,
+        specifycols: bool | None = None,
         alter_table: bool = False,
         alter_table_cascade: bool = False,
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
-        iam_role: Optional[str] = None,  # Unused - Should we remove?
+        aws_access_key_id: str | None = None,
+        aws_secret_access_key: str | None = None,
+        iam_role: str | None = None,  # Unused - Should we remove?
         cleanup_s3_file: bool = True,
-        template_table: Optional[str] = None,
-        temp_bucket_region: Optional[str] = None,
+        template_table: str | None = None,
+        temp_bucket_region: str | None = None,
         strict_length: bool = True,
         csv_encoding: str = "utf-8",
     ):
         """
-        Copy a :ref:`parsons-table` to Redshift.
+        Copy a :ref:`Table` to Redshift.
 
-        `Args:`
+        Args:
             tbl: obj
                 A Parsons Table.
             table_name: str
@@ -527,10 +522,11 @@ class Redshift(
                 of a successful COPY command. If ``True`` explicitly sets ``statupate`` to on, if
                 ``False`` explicitly sets ``statupate`` to off. If ``None`` stats update only if
                 the table is initially empty. Defaults to ``None``.
-                See `Redshift docs <https://docs.aws.amazon.com/redshift/latest/dg/copy-parameters-data-load.html#copy-statupdate>`_
+                See `Redshift docs <https://docs.aws.amazon.com/redshift/latest/dg/copy-parameters-data-load.html#copy-statupdate>`__
                 for more details.
 
                 .. note::
+
                     If STATUPDATE is used, the current user must be either the table owner or a
                     superuser.
 
@@ -539,7 +535,7 @@ class Redshift(
                 ``True`` explicitly sets ``compupdate`` to on, if ``False`` explicitly sets
                 ``compupdate`` to off. If ``None`` the COPY command only chooses compression if the
                 table is initially empty. Defaults to ``None``.
-                See `Redshift docs <https://docs.aws.amazon.com/redshift/latest/dg/copy-parameters-data-load.html#copy-compupdate>`_
+                See `Redshift docs <https://docs.aws.amazon.com/redshift/latest/dg/copy-parameters-data-load.html#copy-compupdate>`__
                 for more details.
             acceptanydate: boolean
                 Allows any date format, including invalid formats such as 00/00/00 00:00:00, to be
@@ -614,11 +610,11 @@ class Redshift(
                 String encoding to use when writing the temporary CSV file that is uploaded to S3.
                 Defaults to 'utf-8'.
 
-        `Returns`
-            Parsons Table or ``None``
-                See :ref:`parsons-table` for output options.
-        """
+        Returns:
+            Table or ``None``
+                See :ref:`Table` for output options.
 
+        """
         # Specify the columns for a copy statement.
         cols = tbl.columns if specifycols or specifycols is None and template_table else None
 
@@ -702,7 +698,7 @@ class Redshift(
         manifest=True,
         header=True,
         delimiter="|",
-        compression="gzip",
+        compression: Literal["gzip", "bzip2", "None"] = "gzip",
         add_quotes=True,
         null_as=None,
         escape=True,
@@ -771,7 +767,6 @@ class Redshift(
             An AWS secret access key granted to the bucket where the file is located. Not
             required if keys are stored as environmental variables.
         """
-
         # The sql query is provided between single quotes, therefore single
         # quotes within the actual query must be escaped.
         # https://docs.aws.amazon.com/redshift/latest/dg/r_UNLOAD.html#unload-parameters
@@ -828,7 +823,7 @@ class Redshift(
         manifest=True,
         header=True,
         delimiter="|",
-        compression="gzip",
+        compression: Literal["gzip", "bzip2", "None"] = "gzip",
         add_quotes=True,
         escape=True,
         allow_overwrite=True,
@@ -842,20 +837,23 @@ class Redshift(
         Args:
             rs_table: str
                 Redshift table.
-
             bucket: str
                 S3 bucket
-
             key: str
                 S3 key prefix ahead of table name
-
             cascade: bool
                 whether to drop cascade
+            manifest: bool
+            header: bool
+            delimiter: str
+            compression: str
+            add_quotes: bool
+            escape: bool
+            allow_overwrite: bool
+            parallel: bool
+            max_file_size: str
+            aws_region: str
 
-            ***unload params
-
-        Returns:
-            None
         """
         query_end = "cascade" if cascade else ""
         self.unload(
@@ -892,12 +890,12 @@ class Redshift(
         """
         Given a list of S3 buckets, generate a manifest file (JSON format). A manifest file
         allows you to copy multiple files into a single table at once. Once the manifest is
-        generated, you can pass it with the :func:`~parsons.redshift.Redshift.copy_s3` method.
+        generated, you can pass it with the :meth:`.copy_s3` method.
 
         AWS keys are not required if ``AWS_ACCESS_KEY_ID`` and
         ``AWS_SECRET_ACCESS_KEY`` environmental variables set.
 
-        `Args:`
+        Args:
 
             buckets: list or str
                 A list of buckets or single bucket from which to generate manifest
@@ -905,7 +903,7 @@ class Redshift(
                 AWS access key id to access S3 bucket
             aws_secret_access_key: str
                 AWS secret access key to access S3 bucket
-            mandatory: boolean
+            mandatory: bool
                 The mandatory flag indicates whether the Redshift COPY should
                 terminate if the file does not exist.
             prefix: str
@@ -915,10 +913,10 @@ class Redshift(
             manifest_key: str
                 Optional key name for S3 bucket to write file
 
-        `Returns:`
+        Returns:
             ``dict`` of manifest
-        """
 
+        """
         from parsons.aws import S3
 
         s3 = S3(
@@ -973,41 +971,48 @@ class Redshift(
         **copy_args,
     ):
         r"""
-        Preform an upsert on an existing table. An upsert is a function in which rows
-        in a table are updated and inserted at the same time.
+        Preform an upsert on an existing table.
 
-        `Args:`
+        An upsert is a function in which rows in a table are
+        updated and inserted at the same time.
+
+        Args:
             table_obj: obj
                 A Parsons table object
             target_table: str
                 The schema and table name to upsert
             primary_key: str or list
                 The primary key column(s) of the target table
-            vacuum: boolean
-                Re-sorts rows and reclaims space in the specified table. You must be a table owner
-                or super user to effectively vacuum a table, however the method will not fail
-                if you lack these priviledges.
-            distinct_check: boolean
-                Check if the primary key column is distinct. Raise error if not.
-            cleanup_temp_table: boolean
-                A temp table is dropped by default on cleanup. You can set to False for debugging.
-            alter_table: boolean
-                Set to False to avoid automatic varchar column resizing to accomodate new data
-            alter_table_cascade: boolean
-                Will drop dependent objects when attempting to alter the table. If ``alter_table``
-                is ``False``, this will be ignored.
-            from_s3: boolean
+            vacuum: bool
+                Re-sorts rows and reclaims space in the specified table.
+                You must be a table owner or super user to effectively vacuum a table,
+                however the method will not fail if you lack these priviledges.
+            distinct_check: bool
+                Check if the primary key column is distinct.
+                Raise error if not.
+            cleanup_temp_table: bool
+                A temp table is dropped by default on cleanup.
+                You can set to False for debugging.
+            alter_table: bool
+                Set to False to avoid automatic varchar
+                column resizing to accomodate new data
+            alter_table_cascade: bool
+                Will drop dependent objects when attempting to alter the table.
+                If ``alter_table`` is ``False``, this will be ignored.
+            from_s3: bool
                 Instead of specifying a table_obj (set the first argument to None),
-                set this to True and include :func:`~parsons.databases.Redshift.copy_s3` arguments
+                set this to True and include :meth:`.copy_s3` arguments
                 to upsert a pre-existing s3 file into the target_table
             distkey: str
-                The column name of the distkey. If not provided, will default to ``primary_key``.
+                The column name of the distkey.
+                If not provided, will default to ``primary_key``.
             sortkey: str or list
-                The column name(s) of the sortkey. If not provided, will default to ``primary_key``.
-            **copy_args: kwargs
-                See :func:`~parsons.databases.Redshift.copy` for options.
-        """
+                The column name(s) of the sortkey.
+                If not provided, will default to ``primary_key``.
+            `**copy_args`: kwargs
+                See :meth:`.copy` for options.
 
+        """
         primary_keys = [primary_key] if isinstance(primary_key, str) else primary_key
 
         # Set distkey and sortkey to argument or primary key. These keys will be used
@@ -1128,7 +1133,7 @@ class Redshift(
                 logger.info(f"{target_table} vacuumed.")
 
     def drop_dependencies_for_cols(self, schema, table, cols):
-        fmt_cols = ", ".join([f"'{c}'" for c in cols])
+        fmt_cols = ", ".join(f"'{c}'" for c in cols)
         sql_depend = f"""
             select
                 distinct dependent_ns.nspname||'.'||dependent_view.relname as table_name
@@ -1157,7 +1162,7 @@ class Redshift(
             tbl = self.query_with_connection(sql_depend, connection)
             dropped_views = [row["table_name"] for row in tbl]
             if dropped_views:
-                sql_drop = "\n".join([f"drop view {view} CASCADE;" for view in dropped_views])
+                sql_drop = "\n".join(f"drop view {view} CASCADE;" for view in dropped_views)
                 tbl = self.query_with_connection(sql_drop, connection)
                 logger.info(f"Dropped the following views: {dropped_views}")
 
@@ -1169,15 +1174,13 @@ class Redshift(
         of a Parsons table. The columns are matched by column name and not their
         index.
 
-        `Args:`
+        Args:
             tbl: obj
                 A Parsons table
             table_name:
                 The target table name (e.g. ``my_schema.my_table``)
-        `Returns:`
-            ``None``
-        """
 
+        """
         # Make the Parsons table column names match valid Redshift names
         tbl.table = petl.setheader(tbl.table, self.column_name_validate(tbl.columns))
 
@@ -1217,7 +1220,6 @@ class Redshift(
         varchar_width:
             The new width of the column if of type varchar.
         """
-
         sql = f"ALTER TABLE {table_name} ALTER COLUMN {column_name} TYPE {data_type}"
 
         if varchar_width:
@@ -1232,6 +1234,204 @@ class Redshift(
         # Return a Redshift table object
 
         return RedshiftTable(self, table_name)
+
+    def get_search_path(self):
+        """Returns the schema search_path for the current user.
+
+        Returns:
+            list[str]: The list of schema in the user's "search_path".
+        """
+        sql_searchpath = """SHOW search_path;"""
+
+        with self.connection() as connection:
+            connection.set_session(autocommit=True)
+            tbl = self.query_with_connection(sql_searchpath, connection)
+
+        if tbl is None:
+            raise ValueError("Search path not found.")
+
+        search_path_str: str = tbl.first  # type: ignore # this should always be a string
+        search_paths = [item.strip() for item in search_path_str.split(",")]
+        return search_paths
+
+    def set_search_path(self, schema: list[str], permanent: bool = True):
+        """Set the schema in the user's search_path.
+
+        Must double or single quote (within the string) any schema names containing non-identifier characters. If the schema name starts with a ``$`` (e.g. ``$user``), it will be automatically single quoted.
+        Args:
+            schema (list[str]): List of schema to set.
+            permanent (bool, optional): True if the change should persist beyond the given session. Defaults to True.
+        """
+        # schema $user included in search path must be single-quoted when set
+        schema = [f"'{s}'" if s.startswith("$") else s for s in schema]
+
+        new_path_schema_str = ", ".join(schema)
+        permanent_statement = f"alter user {self.username} " if permanent else ""
+        statement = f"{permanent_statement} set search_path to {new_path_schema_str};"
+        with self.connection() as connection:
+            connection.set_session(autocommit=True)
+            self.query_with_connection(statement, connection)
+
+    def add_schema_to_search_path(self, schema: str, permanent: bool = True):
+        """Add a single schema to the user's search_path.
+
+        Args:
+            schema (str): The name of the schema to add.
+            permanent (bool, optional): True if the change should persist beyond the given session. Defaults to True.
+        """
+        path_schema: list[str] = self.get_search_path()
+        if schema not in path_schema:
+            path_schema.append(schema)
+        self.set_search_path(path_schema, permanent=permanent)
+
+    def get_distkey(
+        self, schema: str, table: str, errors: Literal["ignore", "raise"] = "raise"
+    ) -> Table | None:
+        """
+        Get a table's distkey information from Redshift internals.
+
+        For more information, see:
+        `Data distribution for query optimization: Amazon Redshift Database Developer Guide <https://docs.aws.amazon.com/redshift/latest/dg/t_Distributing_data.html>`__
+
+        Args:
+            schema: str
+                The schema containing the table.
+            table: str
+                The table to retrieve the distkey for.
+            errors: str
+                If the table does not exist, ``ignore`` will make the method return ``None``,
+                and ``raise`` will throw a ValueError.
+
+        Returns:
+            Table or None
+                Distkey information for the table. If ``errors='ignore'`` and the table name does not exist, will return ``None``.
+
+        Raises:
+            ValueError
+                If ``errors='raise'`` and the table could not be found.
+
+        Columns returned:
+            schema_name:
+                The schema name.
+            table_name:
+                The table name.
+            diststyle:
+                Distribution style or distribution key column, if key distribution is defined.
+            distkey_column:
+                Distribution key column.
+        """
+        sql_distkey = """SELECT
+            n.nspname AS schema_name,
+            c.relname AS table_name,
+            CASE c.reldiststyle
+                WHEN 0 THEN 'EVEN'
+                WHEN 1 THEN 'KEY'
+                WHEN 8 THEN 'ALL'
+                WHEN 9 THEN 'AUTO(EVEN)'
+                WHEN 10 THEN 'AUTO(ALL)'
+                WHEN 11 THEN 'AUTO(KEY)'
+                ELSE 'UNKNOWN'
+            END AS diststyle,
+            a.attname AS distkey_column
+        FROM pg_class c
+        JOIN pg_namespace n
+            ON n.oid = c.relnamespace
+        LEFT JOIN pg_attribute a
+            ON a.attrelid = c.oid
+        AND a.attisdistkey = true
+        WHERE n.nspname = %s
+        AND
+        c.relname = %s;"""
+
+        with self.connection() as connection:
+            connection.set_session(autocommit=True)
+            tbl = self.query_with_connection(sql_distkey, connection, parameters=[schema, table])
+
+        # requested table wasn't found
+        if tbl is not None and tbl.num_rows == 0:
+            # if there's an empty table just return None unless errors=='raise'
+            tbl = None
+
+        if errors == "raise" and tbl is None:
+            raise ValueError(
+                "The table name was not found in pg_class. Did you spell the schema and table name correctly?"
+            )
+
+        return tbl
+
+    def get_sortkey(
+        self, schema: str, table: str, errors: Literal["ignore", "raise"] = "raise"
+    ) -> Table | None:
+        """
+        Get a table's sortkey information from svv_table_info.
+
+        Sortkey information is only available if the schema is in the user's search_path and the table has at least one row.
+
+        For more information, see:
+        `Sort keys: Amazon Redshift Database Developer Guide <https://docs.aws.amazon.com/redshift/latest/dg/t_Sorting_data.html>`__
+
+        `Choose the best sort key: Amazon Redshift Database Developer Guide <https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html>`__
+
+        Args:
+            schema: str
+                The schema containing the table.
+            table: str
+                The table to retrieve the sortkey for.
+            errors: str
+                If the table does not exist, ``ignore`` will make the method return ``None``,
+                and ``raise`` will throw a ValueError.
+
+        Returns:
+            Table or None
+                Table containing sortkey information. If ``errors='ignore'`` and the table name does not exist, will return ``None``.
+
+        Raises:
+            ValueError
+                If ``errors='raise'`` and the table could not be found.
+
+        Columns returned:
+
+            schema:
+                The schema name.
+            table:
+                The table name.
+            sortkey1:
+                First column in the sort key, if a sort key is defined. Possible values include column, AUTO(SORTKEY), and AUTO(SORTKEY(column)).
+            sortkey1_enc:
+                Compression encoding of the first column in the sort key, if a sort key is defined.
+            sortkey_num:
+                Number of columns defined as sort keys.
+
+        """
+        sql_sortkey = """
+            select
+                "schema",
+                "table",
+                sortkey1,
+                sortkey1_enc,
+                sortkey_num
+            from
+                svv_table_info
+            where
+                "schema" = %s and "table" = %s
+            ;
+        """
+
+        with self.connection() as connection:
+            connection.set_session(autocommit=True)
+            tbl = self.query_with_connection(sql_sortkey, connection, parameters=[schema, table])
+
+        # requested table wasn't found
+        if tbl is not None and tbl.num_rows == 0:
+            # if there's an empty table just return None unless errors=='raise'
+            tbl = None
+
+        if errors == "raise" and tbl is None:
+            raise ValueError(
+                "There was no such table in svv_table_info. The table must exist, be within the user's search_path, and have at least one row."
+            )
+
+        return tbl
 
 
 class RedshiftTable(BaseTable):

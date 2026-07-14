@@ -9,8 +9,8 @@ from oauthlib.oauth2 import TokenExpiredError
 from requests.exceptions import HTTPError
 
 from parsons import Newmode, Table
+from test.conftest import assert_matching_tables
 from test.test_newmode import test_newmode_data
-from test.utils import assert_matching_tables
 
 CLIENT_ID = "fakeClientID"
 CLIENT_SECRET = "fakeClientSecret"
@@ -275,16 +275,17 @@ class TestNewmodeV2(unittest.TestCase):
     @requests_mock.Mocker()
     @patch("parsons.newmode.newmode.logger")
     def test_base_request_retries(self, m, mock_logger):
+        get_url = f"{V2_API_URL}v2.1/test-endpoint"
         m.post(V2_API_AUTH_URL, json={"access_token": "fakeAccessToken"})
         m.get(
-            f"{V2_API_URL}v2.1/test-endpoint",
+            get_url,
             status_code=500,
         )
 
-        with pytest.raises(HTTPError, match="500 Server Error: None for url"):
+        with pytest.raises(HTTPError, match=f"Code: 500; URL: {get_url}"):
             self.nm.base_request(
                 method="GET",
-                url=f"{V2_API_URL}v2.1/test-endpoint",
+                url=get_url,
                 retries=2,
             )
 
@@ -331,13 +332,12 @@ class TestNewmodeV2(unittest.TestCase):
 
     @requests_mock.Mocker()
     def test_checked_response_http_error(self, m):
+        get_url = f"{V2_API_URL}v2.1/test-endpoint"
         m.post(V2_API_AUTH_URL, json={"access_token": "fakeAccessToken"})
-        m.get(f"{V2_API_URL}v2.1/test-endpoint", status_code=404)
+        m.get(get_url, status_code=404)
 
-        response = self.nm.default_client.request(
-            url=f"{V2_API_URL}v2.1/test-endpoint", req_type="GET"
-        )
-        with pytest.raises(HTTPError, match="404 Client Error: None for url"):
+        response = self.nm.default_client.request(url=get_url, req_type="GET", raise_on_error=False)
+        with pytest.raises(HTTPError, match=f"404 Client Error: None for url: {get_url}"):
             self.nm.checked_response(response, self.nm.default_client)
 
     @requests_mock.Mocker()

@@ -1,11 +1,10 @@
 import logging
-import os
 import re
 
 import boto3
 from botocore.client import ClientError
 
-from parsons.utilities import files
+from parsons.utilities import check_env, files
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ class AWSConnection:
             # whenever the aws_access_key_id and aws_secret_access_key are passed.
 
             if aws_session_token is None and use_env_token:
-                aws_session_token = os.getenv("AWS_SESSION_TOKEN")
+                aws_session_token = check_env.check("AWS_SESSION_TOKEN", None, optional=True)
 
             self.session = boto3.Session(
                 aws_access_key_id=aws_access_key_id,
@@ -47,7 +46,7 @@ class S3:
     """
     Instantiate the S3 class.
 
-    `Args:`
+    Args:
         aws_access_key_id: str
             The AWS access key id. Not required if the ``AWS_ACCESS_KEY_ID`` env variable
             is set.
@@ -62,8 +61,9 @@ class S3:
             to ``True``. Set to ``False`` in order to ignore the ``AWS_SESSION_TOKEN`` environment
             variable even if the ``aws_session_token`` argument was not passed in.
 
-    `Returns:`
+    Returns:
         S3 class.
+
     """
 
     def __init__(
@@ -90,24 +90,24 @@ class S3:
         """
         List all buckets to which you have access.
 
-        `Returns:`
+        Returns:
             list
-        """
 
+        """
         return [bucket.name for bucket in self.s3.buckets.all()]
 
     def bucket_exists(self, bucket):
         """
         Determine if a bucket exists and you have access to it.
 
-        `Args:`
+        Args:
             bucket: str
                 The bucket name
-        `Returns:`
+        Returns:
             boolean
                 ``True`` if the bucket exists and ``False`` if not.
-        """
 
+        """
         try:
             # If we can list the keys, the bucket definitely exists. We do this check since
             # it will account for buckets that live on other AWS accounts and that we
@@ -132,7 +132,7 @@ class S3:
         """
         List the keys in a bucket, along with extra info about each one.
 
-        `Args:`
+        Args:
             bucket: str
                 The bucket name
             prefix: str
@@ -149,12 +149,13 @@ class S3:
                 Additional arguments for the S3 API call. See `AWS ListObjectsV2 documentation
                 <https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.list_objects_v2>`_
                 for more info.
-        `Returns:`
+
+        Returns:
             dict
                 Dict mapping the keys to info about each key. The info includes 'LastModified',
                 'Size', and 'Owner'.
-        """
 
+        """
         keys_dict = {}
         logger.debug(f"Fetching keys in {bucket} bucket")
 
@@ -223,16 +224,16 @@ class S3:
         """
         Determine if a key exists in a bucket.
 
-        `Args:`
+        Args:
             bucket: str
                 The bucket name
             key: str
                 The object key
-        `Returns:`
+        Returns:
             boolean
                 ``True`` if key exists and ``False`` if not.
-        """
 
+        """
         key_count = len(self.list_keys(bucket, prefix=key))
 
         if key_count > 0:
@@ -261,20 +262,18 @@ class S3:
             collide, you'll see errors like `IllegalLocationConstraintException` or
             `BucketAlreadyExists`.
 
-        `Args:`
+        Args:
             bucket: str
                 The name of the bucket to create
-        `Returns:`
-            ``None``
-        """
 
+        """
         self.client.create_bucket(Bucket=bucket)
 
     def put_file(self, bucket, key, local_path, acl="bucket-owner-full-control", **kwargs):
         """
         Uploads an object to an S3 bucket
 
-        `Args:`
+        Args:
             bucket: str
                 The bucket name
             key: str
@@ -287,30 +286,28 @@ class S3:
                 Additional arguments for the S3 API call. See `AWS Put Object documentation
                 <https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPUT.html>`_ for more
                 info.
-        """
 
+        """
         self.client.upload_file(local_path, bucket, key, ExtraArgs={"ACL": acl, **kwargs})
 
     def remove_file(self, bucket, key):
         """
         Deletes an object from an S3 bucket
 
-        `Args:`
+        Args:
             bucket: str
                 The bucket name
             key: str
                 The object key
-        `Returns:`
-            ``None``
-        """
 
+        """
         self.client.delete_object(Bucket=bucket, Key=key)
 
     def get_file(self, bucket, key, local_path=None, **kwargs):
         """
         Download an object from S3 to a local file
 
-        `Args:`
+        Args:
             local_path: str
                 The local path where the file will be downloaded. If not specified, a temporary
                 file will be created and returned, and that file will be removed automatically
@@ -324,11 +321,11 @@ class S3:
                 <https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.download_file>`_
                 for more info.
 
-        `Returns:`
+        Returns:
             str
                 The path of the new file
-        """
 
+        """
         if not local_path:
             local_path = files.create_temp_file_for_path(key)
 
@@ -340,18 +337,18 @@ class S3:
         """
         Generates a presigned url for an s3 object.
 
-        `Args:`
+        Args:
             bucket: str
                 The bucket name
             key: str
                 The object name
             expires_in: int
                 The time, in seconds, until the url expires
-        `Returns:`
-            Url:
+        Returns:
+            str
                 A link to download the object
-        """
 
+        """
         return self.client.generate_presigned_url(
             ClientMethod="get_object",
             Params={"Bucket": bucket, "Key": key},
@@ -375,7 +372,7 @@ class S3:
         """
         Transfer files between s3 buckets
 
-        `Args:`
+        Args:
             origin_bucket: str
                 The origin bucket
             origin_key: str
@@ -401,10 +398,8 @@ class S3:
                 Additional arguments for the S3 API call. See `AWS download_file docs
                 <https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.copy>`_
                 for more info.
-        `Returns:`
-            ``None``
-        """
 
+        """
         # If prefix, get all files for the prefix
         if origin_key.endswith("/"):
             resp = self.list_keys(
@@ -450,16 +445,15 @@ class S3:
         """
         Grabs a type of bucket based on naming convention.
 
-        `Args:`
+        Args:
             subname: str
                 This will most commonly be a 'vendor'
 
-        `Returns:`
+        Returns:
             list
                 list of buckets
 
         """
-
         all_buckets = self.list_buckets()
         buckets = [x for x in all_buckets if bucket_subname in x.split("-")]
 

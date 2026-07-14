@@ -2,6 +2,7 @@ import collections
 import copy
 import logging
 import os
+from typing import Literal
 
 from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.adobjects.customaudience import CustomAudience
@@ -9,6 +10,7 @@ from facebook_business.api import FacebookAdsApi
 from joblib import Parallel, delayed
 
 from parsons.etl.table import Table
+from parsons.utilities import check_env
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,7 @@ class FacebookAds:
     """
     Instantiate the FacebookAds class
 
-    `Args:`
+    Args:
         app_id: str
             A Facebook app ID. Required if env var FB_APP_ID is not populated.
         app_secret: str
@@ -31,6 +33,7 @@ class FacebookAds:
             A Facebook access token. Required if env var FB_ACCESS_TOKEN is not populated.
         ad_account_id: str
             A Facebook ad account ID. Required if env var FB_AD_ACCOUNT_ID isnot populated.
+
     """
 
     # The data columns that are valid for creating a custom audience.
@@ -38,7 +41,7 @@ class FacebookAds:
     # unambiguous.
     # IMPORTANT - Keep these maps in sync with the comments in the ``add_users_to_custom_audience``
     # method!
-    # TODO add support for parsing full names from one column
+    # TODO(jburchard): add support for parsing full names from one column
     KeyMatchMap = {
         FBKeySchema.email: ["email", "email address", "voterbase_email"],
         FBKeySchema.fn: ["fn", "first", "first name", "vb_tsmart_first_name"],
@@ -77,16 +80,10 @@ class FacebookAds:
     }
 
     def __init__(self, app_id=None, app_secret=None, access_token=None, ad_account_id=None):
-        try:
-            self.app_id = app_id or os.environ["FB_APP_ID"]
-            self.app_secret = app_secret or os.environ["FB_APP_SECRET"]
-            self.access_token = access_token or os.environ["FB_ACCESS_TOKEN"]
-            self.ad_account_id = ad_account_id or os.environ["FB_AD_ACCOUNT_ID"]
-        except KeyError as error:
-            logger.error(
-                "FB Marketing API credentials missing. Must be specified as env vars or kwargs"
-            )
-            raise error
+        self.app_id = check_env.check("FB_APP_ID", app_id)
+        self.app_secret = check_env.check("FB_APP_SECRET", app_secret)
+        self.access_token = check_env.check("FB_ACCESS_TOKEN", access_token)
+        self.ad_account_id = check_env.check("FB_AD_ACCOUNT_ID", ad_account_id)
 
         FacebookAdsApi.init(self.app_id, self.app_secret, self.access_token)
         self.ad_account = AdAccount(f"act_{self.ad_account_id}")
@@ -116,7 +113,7 @@ class FacebookAds:
     @staticmethod
     def _preprocess_dob_column(table, column):
         # Parse the DOB column into 3 new columns, and remove the original column
-        # TODO Throw an error if the values are not 6 characters long?
+        # TODO(jburchard): Throw an error if the values are not 6 characters long?
 
         table.add_column(FBKeySchema.doby, lambda row: row[column][:4] if row[column] else None)
         table.add_column(FBKeySchema.dobm, lambda row: row[column][4:6] if row[column] else None)
@@ -148,15 +145,15 @@ class FacebookAds:
 
         See ``FacebookAds.create_custom_audience`` for more details.
 
-        `Args`:
+        Args:
             users_table: Table
                 The source table for matching
 
-        `Returns:`
+        Returns:
             Table
                 The prepared table
-        """
 
+        """
         # Copy the table to avoid messing up the source table
         t = copy.deepcopy(users_table)
 
@@ -180,8 +177,8 @@ class FacebookAds:
 
         for fb_key, orig_cols in fb_keys_to_orig_cols.items():
             value_fn = (
-                lambda bound_cols: lambda row: FacebookAds._get_first_non_empty_value_from_dict(
-                    row, bound_cols
+                lambda bound_cols: (
+                    lambda row: FacebookAds._get_first_non_empty_value_from_dict(row, bound_cols)
                 )
             )(orig_cols)
 
@@ -212,11 +209,18 @@ class FacebookAds:
         ]
         return data_source in valid_sources
 
-    def create_custom_audience(self, name, data_source, description=None):
+    def create_custom_audience(
+        self,
+        name,
+        data_source: Literal[
+            "USER_PROVIDED_ONLY", "PARTNER_PROVIDED_ONLY", "BOTH_USER_AND_PARTNER_PROVIDED"
+        ],
+        description=None,
+    ):
         """
         Creates a FB custom audience.
 
-        `Args:`
+        Args:
             name: str
                 The name of the custom audience
             data_source: str
@@ -227,10 +231,10 @@ class FacebookAds:
             description: str
                 Optional. The description of the custom audience
 
-        `Returns:`
+        Returns:
             ID of the created audience
-        """
 
+        """
         if not self._is_valid_data_source(data_source):
             raise KeyError("Invalid data_source provided")
 
@@ -248,11 +252,11 @@ class FacebookAds:
         """
         Deletes a FB custom audience.
 
-        `Args:`
+        Args:
             audience_id: str
                 The ID of the custom audience to delete.
-        """
 
+        """
         CustomAudience(audience_id).api_delete()
 
     @staticmethod
@@ -342,14 +346,13 @@ class FacebookAds:
         use "United States" instead of "US" for the "country" field, the API will appear to accept
         it, when in reality it is probably ignoring that field. So read the docs if you're worried.
 
-        `Args:`
+        Args:
             audience_id: str
                 The ID of the custom audience to delete.
             users_table: obj
-                Parsons table
+                Table
 
         """
-
         logger.info(
             f"Adding custom audience users from provided table with {users_table.num_rows} rows"
         )

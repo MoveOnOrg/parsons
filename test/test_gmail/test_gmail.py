@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import requests_mock
+from email_validator import EmailSyntaxError
 
 from parsons import Gmail
 
@@ -103,7 +104,7 @@ class TestGmail(unittest.TestCase):
 
         # Check the number of parts
         expected_parts = 1
-        assert sum([1 for i in decoded.walk()]) == expected_parts
+        assert sum(1 for i in decoded.walk()) == expected_parts
 
     def test_create_message_html(self):
         sender = "Sender <sender@email.com>"
@@ -146,7 +147,7 @@ class TestGmail(unittest.TestCase):
 
         # Check the number of parts
         expected_parts = 3
-        assert sum([1 for i in decoded.walk()]) == expected_parts
+        assert sum(1 for i in decoded.walk()) == expected_parts
 
     def test_create_message_html_no_text(self):
         sender = "Sender <sender@email.com>"
@@ -187,7 +188,7 @@ class TestGmail(unittest.TestCase):
 
         # Check the number of parts
         expected_parts = 2
-        assert sum([1 for i in decoded.walk()]) == expected_parts
+        assert sum(1 for i in decoded.walk()) == expected_parts
 
     def test_create_message_attachments(self):
         sender = "Sender <sender@email.com>"
@@ -243,7 +244,7 @@ class TestGmail(unittest.TestCase):
 
         # Check the number of parts
         expected_parts = 4
-        assert sum([1 for i in decoded.walk()]) == expected_parts
+        assert sum(1 for i in decoded.walk()) == expected_parts
 
     def test_create_message_attachments_jpeg(self):
         sender = "Sender <sender@email.com>"
@@ -296,7 +297,7 @@ class TestGmail(unittest.TestCase):
 
         # Check the number of parts
         expected_parts = 4
-        assert sum([1 for i in decoded.walk()]) == expected_parts
+        assert sum(1 for i in decoded.walk()) == expected_parts
 
     def test_create_message_attachments_m4a(self):
         sender = "Sender <sender@email.com>"
@@ -347,7 +348,7 @@ class TestGmail(unittest.TestCase):
 
         # Check the number of parts
         expected_parts = 4
-        assert sum([1 for i in decoded.walk()]) == expected_parts
+        assert sum(1 for i in decoded.walk()) == expected_parts
 
     def test_create_message_attachments_mp3(self):
         sender = "Sender <sender@email.com>"
@@ -398,7 +399,7 @@ class TestGmail(unittest.TestCase):
 
         # Check the number of parts
         expected_parts = 4
-        assert sum([1 for i in decoded.walk()]) == expected_parts
+        assert sum(1 for i in decoded.walk()) == expected_parts
 
     def test_create_message_attachments_mp4(self):
         sender = "Sender <sender@email.com>"
@@ -449,7 +450,7 @@ class TestGmail(unittest.TestCase):
 
         # Check the number of parts
         expected_parts = 4
-        assert sum([1 for i in decoded.walk()]) == expected_parts
+        assert sum(1 for i in decoded.walk()) == expected_parts
 
     def test_create_message_attachments_pdf(self):
         sender = "Sender <sender@email.com>"
@@ -501,7 +502,7 @@ class TestGmail(unittest.TestCase):
 
         # Check the number of parts
         expected_parts = 4
-        assert sum([1 for i in decoded.walk()]) == expected_parts
+        assert sum(1 for i in decoded.walk()) == expected_parts
 
     def test__validate_email_string(self):
         emails = [
@@ -510,36 +511,15 @@ class TestGmail(unittest.TestCase):
             {"email": "<sender@email.com>", "expected": True},
             {"email": "Sender sender@email.com", "expected": False},
             {"email": "Sender <sender2email.com>", "expected": False},
+            {"email": "Sender <sender@email,com>", "expected": False},
+            {"email": "Sender <sender+alias@email,com>", "expected": False},
         ]
-
-        # The behavior of email.parseaddr depends on the python patch version
-        # See https://github.com/python/cpython/issues/102988
-        # or associated changelogs, e.g.
-        # https://docs.python.org/3.8/whatsnew/changelog.html#python-3-8-20-final
-        if getattr(email.utils, "supports_strict_parsing", False):
-            emails.extend(
-                [
-                    {"email": "Sender <sender@email,com>", "expected": False},
-                    {"email": "Sender <sender+alias@email,com>", "expected": False},
-                ]
-            )
-        else:
-            emails.extend(
-                [
-                    {"email": "Sender <sender@email,com>", "expected": True},
-                    {"email": "Sender <sender+alias@email,com>", "expected": True},
-                ]
-            )
 
         for e in emails:
             if e["expected"]:
                 assert self.gmail._validate_email_string(e["email"])
             else:
-                with pytest.raises(ValueError, match="Invalid email address"):
+                with pytest.raises(EmailSyntaxError):
                     self.gmail._validate_email_string(e["email"])
 
-    # TODO test sending emails
-
-
-if __name__ == "__main__":
-    unittest.main()
+    # TODO: test sending emails
