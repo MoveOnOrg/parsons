@@ -179,3 +179,7 @@ relative_files = true
 source = [
     "parsons/",
     ]
+
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"

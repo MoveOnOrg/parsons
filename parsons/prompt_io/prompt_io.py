@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import Any, Optional, cast
+import urllib.parse
+from typing import Any, Literal, Optional, cast
 
 from pydantic import BaseModel, ConfigDict
 
@@ -270,7 +271,21 @@ class PromptIO:
         self,
         start_time: Optional[int] = None,
         end_time: Optional[int] = None,
-        time_window: Optional[str] = None,
+        time_window: Optional[
+            Literal[
+                "last_60_mins",
+                "yesterday",
+                "today",
+                "last_month",
+                "this_month",
+                "last_quarter",
+                "this_quarter",
+                "last_year",
+                "this_year",
+                "custom",
+                "all_time",
+            ]
+        ] = None,
     ) -> Table:
         """
         Get all opted out phone numbers within a specified time range.
@@ -302,43 +317,276 @@ class PromptIO:
 
         return Table(opt_outs)
 
-    def opt_out_contact(self, contact_id: int) -> dict:
+    def update_contact_global_opt_out(
+        self, contact_id: int, is_opted_out: bool, updated_contact_name: Optional[str] = None
+    ) -> dict:
         """
         Opt a Contact **out** of receiving messages.
 
         `Args:`
             contact_id: `int`
                 The primary ID for the contact.
+            is_opted_out: `bool`
+                `True` to opt the contact out, `False` to opt back in
+                (only possible if not via carrier keyword).
+            updated_contact_name: `str`
+                `Optional` A new display name for the contact.
         `Returns:`
             `dict`
                 The updated Contact object.
         """
 
+        data: dict = {"globalOptOut": is_opted_out}
+
+        if updated_contact_name:
+            data["displayName"] = updated_contact_name
+
         return cast(
             "dict",
-            self.api.put_request(
-                f"customers/{contact_id}", data=json.dumps({"globalOptOut": True})
-            ),
+            self.api.put_request(f"customers/{contact_id}", data=json.dumps(data)),
         )
 
-    def opt_in_contact(self, contact_id: int) -> dict:
+    def delete_contact_data_fields(self, contact_id: int, data_field_keys: list[str]) -> None:
         """
-        Opt a Contact **in** to receive messages.
+        Delete specific data fields for a Contact.
+
+        Reserved fields (keys prefixed with `pio_`) are skipped, as are any fields
+        the API reports as non-modifiable reserved fields.
+
+        `Args:`
+            contact_id: `int`
+                The primary ID for the contact.
+            data_field_keys: `list[str]`
+                The data field keys to delete from the contact.
+        `Returns:`
+            None
+        """
+
+        for key in data_field_keys:
+            field_key = str(key or "").strip()
+            if not field_key:
+                continue
+            if field_key.startswith("pio_"):
+                logger.info("Skipping reserved data field `%s`.", field_key)
+                continue
+
+            endpoint = (
+                f"data/customer/{urllib.parse.quote(str(contact_id))}"
+                f"/keys/{urllib.parse.quote(field_key)}"
+            )
+            response = self.api.request(endpoint, "DELETE")
+
+            if response.status_code >= 400:
+                is_reserved_field_error = (
+                    response.status_code == 500 and "cannotModifyReservedField" in response.text
+                )
+                if is_reserved_field_error:
+                    logger.info("Skipping non-modifiable data field `%s`.", field_key)
+                    continue
+                # Delegate to the connector's standard error handling for anything else.
+                self.api.validate_response(response)
+
+            logger.debug("Deleted data field `%s` for contact %s.", field_key, contact_id)
+
+        return None
+
+    def delete_contact_instant_app_data(self, identity_key: str) -> Table:
+        """
+        Collect all Instant App element data associated with a Contact's message
+        history.
+
+        Fetches the Contact's message history, discovers every unique Instant App
+        referenced by those messages, and gathers each app's stored element data.
+
+        `Args:`
+            identity_key: `str`
+                The identity key (e.g. phone number) of the contact.
+        `Returns:`
+            Parsons `Table`
+                A Table with columns `id`, `element_key`, and `element_value`, one
+                row per Instant App element value.
+        """
+
+        identity_key = str(identity_key or "").strip()
+        if not identity_key:
+            raise ValueError("`identity_key` must be provided.")
+
+        history_payload = self.api.get_request(
+            f"messages/history/{urllib.parse.quote(identity_key)}"
+        )
+
+        if isinstance(history_payload, list):
+            messages = history_payload
+        elif isinstance(history_payload, dict):
+            messages = history_payload.get("items") or history_payload.get("data") or []
+        else:
+            messages = []
+
+        # Collect the unique Instant App IDs referenced by the messages, preserving
+        # the order in which they were first seen.
+        instant_app_ids = []
+        for message in messages:
+            instant_app = (message or {}).get("instantApp") or {}
+            instant_app_id = instant_app.get("id")
+            if instant_app_id in (None, "") or instant_app_id in instant_app_ids:
+                continue
+            instant_app_ids.append(instant_app_id)
+
+        logger.info("Discovered %s instant app(s).", len(instant_app_ids))
+
+        rows = []
+        for instant_app_id in instant_app_ids:
+            elements_payload = self.api.get_request(
+                f"instant_apps/{urllib.parse.quote(str(instant_app_id))}/elements"
+            )
+            existing_data = (
+                elements_payload.get("data") if isinstance(elements_payload, dict) else None
+            )
+            if not isinstance(existing_data, dict) or not existing_data:
+                logger.debug("No element data found for instant app `%s`.", instant_app_id)
+                continue
+
+            for key, value in existing_data.items():
+                rows.append(
+                    {
+                        "id": str(instant_app_id),
+                        "element_key": str(key),
+                        "element_value": str(value),
+                    }
+                )
+
+        return Table(rows if rows else [["id", "element_key", "element_value"]])
+
+    def delete_contact_polls_surveys(self, contact_id: int) -> None:
+        """
+        Delete all polls and surveys (Instant Apps) associated with a Contact.
+
+        Fetches the Contact's Instant Apps and deletes the poll/survey for each
+        one that exposes a `schemaApiId`.
 
         `Args:`
             contact_id: `int`
                 The primary ID for the contact.
         `Returns:`
-            `dict`
-                The updated Contact object.
+            None
         """
 
-        return cast(
-            "dict",
-            self.api.put_request(
-                f"customers/{contact_id}", data=json.dumps({"globalOptOut": False})
-            ),
+        list_payload = self.api.get_request(
+            f"customers/{urllib.parse.quote(str(contact_id))}/instant_apps",
+            params={"first": 0, "max": 100, "desc": True},
         )
+
+        if isinstance(list_payload, list):
+            instant_apps = list_payload
+        elif isinstance(list_payload, dict):
+            instant_apps = list_payload.get("items") or list_payload.get("data") or []
+        else:
+            instant_apps = []
+
+        logger.info("Fetched %s instant app(s) for contact %s.", len(instant_apps), contact_id)
+
+        for app in instant_apps:
+            schema_api_id = str((app or {}).get("schemaApiId") or "").strip()
+            if not schema_api_id:
+                continue
+
+            self.api.delete_request(f"instant_apps/polls/{urllib.parse.quote(schema_api_id)}")
+            logger.debug("Deleted poll/survey `%s`.", schema_api_id)
+
+        return None
+
+    def delete_contact_wallet_cards(self, contact_id: int) -> None:
+        """
+        Delete all wallet card instances associated with a Contact.
+
+        Fetches every wallet card, then for each card deletes all of the card
+        instances belonging to the given contact.
+
+        `Args:`
+            contact_id: `int`
+                The primary ID for the contact.
+        `Returns:`
+            None
+        """
+
+        cards_payload = self.api.get_request("wallets/cards")
+        wallet_cards = (
+            cards_payload.get("walletCards") if isinstance(cards_payload, dict) else None
+        ) or []
+
+        wallet_card_ids = []
+        for card in wallet_cards:
+            card_id = (card or {}).get("id")
+            if card_id in (None, ""):
+                continue
+            wallet_card_ids.append(card_id)
+
+        logger.info("Fetched %s wallet card(s).", len(wallet_card_ids))
+
+        for wallet_card_id in wallet_card_ids:
+            instances_payload = self.api.get_request(
+                f"wallets/cards/{urllib.parse.quote(str(wallet_card_id))}/instances",
+                params={"customerId": contact_id, "first": 0, "max": 100},
+            )
+            models = (
+                instances_payload.get("models") if isinstance(instances_payload, dict) else None
+            ) or []
+
+            instance_ids = []
+            for model in models:
+                instance_id = (model or {}).get("id")
+                if instance_id in (None, ""):
+                    continue
+                instance_ids.append(instance_id)
+
+            logger.debug(
+                "Fetched %s instance(s) for wallet card `%s`.", len(instance_ids), wallet_card_id
+            )
+
+            for instance_id in instance_ids:
+                self.api.delete_request(
+                    f"wallets/cards/{urllib.parse.quote(str(wallet_card_id))}"
+                    f"/instances/{urllib.parse.quote(str(instance_id))}"
+                )
+                logger.debug(
+                    "Deleted wallet card instance `%s` (card `%s`).",
+                    instance_id,
+                    wallet_card_id,
+                )
+
+        return None
+
+    def remove_contact_from_contact_lists(
+        self, phone_number: str, contact_list_ids: list[str]
+    ) -> None:
+        """
+        Remove a Contact from one or more Contact Lists.
+
+        `Args:`
+            phone_number: `str`
+                The phone number identifying the contact.
+            contact_list_ids: `list[str]`
+                The IDs of the contact lists to remove the contact from.
+        `Returns:`
+            None
+        """
+
+        phone_number = str(phone_number or "").strip()
+        if not phone_number:
+            raise ValueError("`phone_number` must be provided.")
+
+        for contact_list_id in contact_list_ids:
+            if contact_list_id is None or str(contact_list_id).strip() == "":
+                continue
+
+            endpoint = (
+                f"contact_lists/{urllib.parse.quote(str(contact_list_id))}"
+                f"/contacts/{urllib.parse.quote(phone_number)}"
+            )
+            self.api.delete_request(endpoint)
+            logger.debug("Removed contact from contact list `%s`.", contact_list_id)
+
+        return None
 
     def create_tag(self, name: str, color_hex_code: str, note: Optional[str] = None) -> dict:
         """
