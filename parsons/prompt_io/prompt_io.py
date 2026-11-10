@@ -176,6 +176,23 @@ class PromptIO:
 
         return {**contact_list, "contactsCount": contacts_response["count"]}
 
+    def get_contact_import_by_id(self, contact_import_id: str) -> dict:
+        """
+        Get the status of a contact list import by its ID.
+
+        `Args:`
+            contact_import_id: `str`
+                The ID for the contact list import, returned when the contact
+                list is created.
+        `Returns:`
+            `dict`
+                The Import Status object.
+        """
+
+        response = self.api.get_request(f"contact_imports/{contact_import_id}")
+
+        return cast("dict", response)
+
     def get_all_contact_lists(self) -> Table:
         """
         Get all Contact Lists. Will return all records starting from the specified
